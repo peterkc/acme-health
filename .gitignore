@@ -32,5 +32,11 @@ data/cgm/raw/
 # Aspire
 .aspire/
 
+# Local caches
+.cache/
+
+# Worktrees
+.worktrees/
+
 # User secrets
 secrets/

@@ -97,3 +97,15 @@ class TestParseCgmCsv:
         df, warnings = parse_cgm_csv(content, "alt.csv")
         assert len(df) == 1
         assert warnings == 0
+
+    def test_first_matching_column_wins(self):
+        """When multiple column name variants exist, first in precedence order wins."""
+        content = (
+            b"timestamp,time,glucose_mg_dl\n"
+            b"2024-01-15T06:00:00Z,2024-01-15T07:00:00Z,95\n"
+        )
+        df, warnings = parse_cgm_csv(content, "ambiguous.csv")
+        assert len(df) == 1
+        assert warnings == 0
+        # "timestamp" should win over "time" (first in TIMESTAMP_COLUMNS tuple)
+        assert df["timestamp_utc"].iloc[0].hour == 6

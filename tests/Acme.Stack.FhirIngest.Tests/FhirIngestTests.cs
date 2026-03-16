@@ -20,12 +20,12 @@ public class FhirIngestTests : IClassFixture<WebApplicationFactory<Program>>
         {
             builder.ConfigureAppConfiguration((context, config) =>
             {
-                // Provide a dummy connection string so the app starts.
-                // DB-dependent tests will fail with a connection error; that is expected.
-                // The empty-bundle test never hits the DB path.
+                // Use real DB connection if provided via environment variable;
+                // otherwise fall back to empty string for unit tests.
+                var envConn = Environment.GetEnvironmentVariable("ConnectionStrings__doltgresql");
                 config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:doltgresql"] = ""
+                    ["ConnectionStrings:doltgresql"] = envConn ?? ""
                 });
             });
         });

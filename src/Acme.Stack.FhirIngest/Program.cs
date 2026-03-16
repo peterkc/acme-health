@@ -14,7 +14,7 @@ var connectionString = builder.Configuration.GetConnectionString("doltgresql");
 if (!string.IsNullOrEmpty(connectionString))
 {
     var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-    builder.Services.AddSingleton(dataSourceBuilder.Build());
+    builder.Services.AddSingleton<NpgsqlDataSource>(dataSourceBuilder.Build());
 }
 
 var app = builder.Build();
@@ -204,6 +204,9 @@ app.Run();
 // Map Firely Patient to flat PatientRecord
 static PatientRecord MapPatient(Patient patient)
 {
+    if (string.IsNullOrEmpty(patient.Id))
+        throw new InvalidOperationException("Patient resource has no Id");
+
     var name = patient.Name?.FirstOrDefault();
     return new PatientRecord(
         Id: patient.Id,
@@ -217,6 +220,9 @@ static PatientRecord MapPatient(Patient patient)
 // Map Firely Observation to flat ObservationRecord
 static ObservationRecord MapObservation(Observation obs)
 {
+    if (string.IsNullOrEmpty(obs.Id))
+        throw new InvalidOperationException("Observation resource has no Id");
+
     var coding = obs.Code?.Coding?.FirstOrDefault();
     decimal? value = null;
     string unit = "";

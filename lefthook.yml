@@ -3,8 +3,8 @@ pre-commit:
   commands:
     lint-dotnet:
       run: dotnet format AcmeHealth.slnx --verify-no-changes
-      glob: "*.cs"
+      glob: "**/*.cs"
     fmt-py:
       run: uvx ruff format src/services/ && uvx ruff check --fix --select I src/services/
-      glob: "*.py"
+      glob: "**/*.py"
       stage_fixed: true

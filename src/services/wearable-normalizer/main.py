@@ -28,9 +28,9 @@ CREATE TABLE IF NOT EXISTS cgm_readings (
 );
 """
 
-# Column name variants for timestamp and glucose value
-TIMESTAMP_COLUMNS = {"timestamp", "time", "datetime", "date_time", "timestamp_utc"}
-GLUCOSE_COLUMNS = {"glucose_mg_dl", "glucose", "value", "glucose_value", "mg_dl"}
+# Column name variants — ordered by preference, first match wins
+TIMESTAMP_COLUMNS = ("timestamp", "time", "datetime", "date_time", "timestamp_utc")
+GLUCOSE_COLUMNS = ("glucose_mg_dl", "glucose", "value", "glucose_value", "mg_dl")
 
 
 def parse_connection_string(dotnet_conn_str: str) -> str:
@@ -58,7 +58,16 @@ def parse_connection_string(dotnet_conn_str: str) -> str:
         pg_key = key_map.get(key.strip().lower())
         if pg_key:
             parts.append(f"{pg_key}={value.strip()}")
-    return " ".join(parts)
+    result = " ".join(parts)
+    # Validate required keys are present
+    parsed_keys = {p.split("=", 1)[0] for p in parts}
+    missing = {"host", "dbname"} - parsed_keys
+    if missing:
+        raise ValueError(
+            f"Connection string missing required keys ({', '.join(sorted(missing))}): "
+            f"{dotnet_conn_str}"
+        )
+    return result
 
 
 def get_connection_string() -> str | None:
@@ -101,7 +110,7 @@ async def health():
     return {"status": "healthy"}
 
 
-def _find_column(df_columns: list[str], candidates: set[str]) -> str | None:
+def _find_column(df_columns: list[str], candidates: tuple[str, ...]) -> str | None:
     """Find the first matching column name (case-insensitive)."""
     lower_map = {c.lower().strip(): c for c in df_columns}
     for candidate in candidates:
@@ -128,11 +137,11 @@ def parse_cgm_csv(content: bytes, filename: str) -> tuple[pd.DataFrame, int]:
 
     if ts_col is None:
         raise ValueError(
-            f"No timestamp column found. Expected one of: {sorted(TIMESTAMP_COLUMNS)}"
+            f"No timestamp column found. Expected one of: {list(TIMESTAMP_COLUMNS)}"
         )
     if gl_col is None:
         raise ValueError(
-            f"No glucose column found. Expected one of: {sorted(GLUCOSE_COLUMNS)}"
+            f"No glucose column found. Expected one of: {list(GLUCOSE_COLUMNS)}"
         )
 
     total_rows = len(df)
@@ -183,14 +192,18 @@ async def ingest_cgm(file: UploadFile) -> dict:
     if conninfo is None:
         raise HTTPException(status_code=503, detail="Database is not configured")
 
-    # Read CSV content with size limit
-    content = await file.read()
-    if len(content) > MAX_CSV_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"CSV too large ({len(content)} bytes, max {MAX_CSV_BYTES})",
-        )
+    # Read CSV content in chunks to enforce size limit before full buffering
+    content = bytearray()
+    chunk_size = 64 * 1024  # 64 KB
+    while chunk := await file.read(chunk_size):
+        content.extend(chunk)
+        if len(content) > MAX_CSV_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"CSV too large (max {MAX_CSV_BYTES} bytes)",
+            )
     filename = file.filename or "unknown.csv"
+    content = bytes(content)
 
     # Parse and normalize CSV
     try:

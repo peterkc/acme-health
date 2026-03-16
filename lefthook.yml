@@ -5,6 +5,6 @@ pre-commit:
       run: dotnet format AcmeHealth.slnx --verify-no-changes
       glob: "*.cs"
     fmt-py:
-      run: ruff format src/services/ && ruff check --fix --select I src/services/
+      run: uvx ruff format src/services/ && uvx ruff check --fix --select I src/services/
       glob: "*.py"
       stage_fixed: true

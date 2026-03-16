@@ -35,7 +35,7 @@ lint-dotnet:
 
 # Check Python code with ruff
 lint-py:
-    ruff check src/services/
+    uvx ruff check src/services/
 
 # --- Format ---
 
@@ -48,16 +48,16 @@ fmt-dotnet:
 
 # Format Python code
 fmt-py:
-    ruff format src/services/
-    ruff check --fix --select I src/services/
+    uvx ruff format src/services/
+    uvx ruff check --fix --select I src/services/
 
 # Check Python formatting without making changes (C# checked via lint-dotnet)
 fmt-check: fmt-check-py
 
 # Check Python formatting without changes
 fmt-check-py:
-    ruff format --check src/services/
-    ruff check --select I src/services/
+    uvx ruff format --check src/services/
+    uvx ruff check --select I src/services/
 
 # --- Full Quality Gate ---
 

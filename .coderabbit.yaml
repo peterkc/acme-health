@@ -1,0 +1,11 @@
+language: en-US
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  path_filters:
+    - "!data/**"
+    - "!docs/adr/**"
+
+chat:
+  auto_reply: true

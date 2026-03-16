@@ -1,11 +1,95 @@
+# CodeRabbit configuration
+# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+# Schema: https://coderabbit.ai/integrations/schema.v2.json
+
 language: en-US
 
+# Inherit org/portal config as base; repo fields override
+inheritance: true
+
+tone_instructions: "Focus on correctness and logic errors. Skip style issues that ruff/dotnet-format handles. Be direct."
+
 reviews:
-  profile: assertive
-  request_changes_workflow: true
+  # Assertive = more thorough, catches semantic issues
+  profile: "assertive"
+
+  # Workflow gates
+  request_changes_workflow: true  # Auto-approve when all comments resolved
+  fail_commit_status: true        # Block merge on unresolved findings
+  review_details: true            # Show detailed review info
+
+  # Labels and reviewers
+  suggested_labels: false
+  auto_apply_labels: true
+
+  # Skip non-code paths
   path_filters:
-    - "!data/**"
-    - "!docs/adr/**"
+    - "!data/**"                # Sample datasets (large CSVs)
+    - "!docs/adr/**"            # Architecture decision records
+    - "!**/*.md"                # Markdown documentation
+    - "!**/__pycache__/**"      # Python bytecode
+    - "!**/uv.lock"             # Lock file
+
+  # Walkthrough and summary
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+
+  # Focus on real issues, skip trivial style nitpicks
+  path_instructions:
+    - path: "**/*.py"
+      instructions: |
+        Focus on correctness, security, and logic errors. Skip trivial style
+        suggestions that ruff/formatter already handles. Do not suggest
+        alternative patterns unless the current pattern has a concrete bug
+        or performance issue.
+    - path: "**/test_*.py"
+      instructions: |
+        Focus on test correctness and coverage gaps. Do not nitpick test
+        structure, assertion style, or mock patterns unless they cause
+        false positives/negatives.
+    - path: "**/*.cs"
+      instructions: |
+        Focus on correctness, null safety, async/await patterns, and SQL
+        injection risks. Skip formatting issues that dotnet format handles.
+        DoltgreSQL-specific SQL (DOLT_COMMIT, dolt_log) is intentional.
+    - path: "justfile"
+      instructions: |
+        Check recipe dependencies and cross-recipe consistency. Verify that
+        recipes referenced in composite recipes (e.g., 'check') have their
+        tool dependencies documented or bootstrapped.
+
+  # Auto-review on PR open/update
+  auto_review:
+    enabled: true
+    drafts: true
+    auto_pause_after_reviewed_commits: 0
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+
+  # Finishing touches
+  finishing_touches:
+    simplify:
+      enabled: true
+
+  tools:
+    ruff:
+      enabled: true
+    languagetool:
+      enabled: true
+      enabled_only: false
+      level: "default"
+
+# Knowledge base: learn from project context and review history
+knowledge_base:
+  code_guidelines:
+    enabled: true
+  learnings:
+    scope: "local"
+  mcp:
+    usage: disabled
 
 chat:
   auto_reply: true

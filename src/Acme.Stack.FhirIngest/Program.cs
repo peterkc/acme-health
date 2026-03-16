@@ -98,83 +98,99 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             statusCode: 503);
     }
 
-    await using var conn = await db.OpenConnectionAsync();
-
-    // Persist patients — UPSERT for idempotent ingestion
-    foreach (var patient in patients)
-    {
-        var record = MapPatient(patient);
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO patients (id, family_name, given_name, birth_date, gender)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (id) DO UPDATE SET
-                family_name = EXCLUDED.family_name,
-                given_name = EXCLUDED.given_name,
-                birth_date = EXCLUDED.birth_date,
-                gender = EXCLUDED.gender
-            """;
-        cmd.Parameters.AddWithValue(record.Id);
-        cmd.Parameters.AddWithValue(record.FamilyName ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue(record.GivenName ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue(record.BirthDate.HasValue
-            ? record.BirthDate.Value
-            : DBNull.Value);
-        cmd.Parameters.AddWithValue(record.Gender ?? (object)DBNull.Value);
-        await cmd.ExecuteNonQueryAsync();
-    }
-
-    // Persist observations — UPSERT for idempotent ingestion
-    foreach (var obs in observations)
-    {
-        var record = MapObservation(obs);
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO observations (id, patient_id, code, display, value, unit, effective_date)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT (id) DO UPDATE SET
-                patient_id = EXCLUDED.patient_id,
-                code = EXCLUDED.code,
-                display = EXCLUDED.display,
-                value = EXCLUDED.value,
-                unit = EXCLUDED.unit,
-                effective_date = EXCLUDED.effective_date
-            """;
-        cmd.Parameters.AddWithValue(record.Id);
-        cmd.Parameters.AddWithValue(record.PatientId ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue(record.Code ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue(record.Display ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue(record.Value.HasValue
-            ? record.Value.Value
-            : DBNull.Value);
-        cmd.Parameters.AddWithValue(record.Unit ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue(record.EffectiveDate);
-        await cmd.ExecuteNonQueryAsync();
-    }
-
-    // Commit the data change in DoltgreSQL for version tracking
-    string? commitHash = null;
+    // FR-032: DoltgreSQL unreachable returns HTTP 503
+    NpgsqlConnection conn;
     try
     {
-        await using var commitCmd = conn.CreateCommand();
-        var timestamp = DateTime.UtcNow.ToString("o");
-        commitCmd.CommandText = $"SELECT DOLT_COMMIT('-Am', 'Ingest: FHIR Bundle at {timestamp}')";
-        var result = await commitCmd.ExecuteScalarAsync();
-        commitHash = result?.ToString();
-        logger.LogInformation("DoltgreSQL commit: {CommitHash}", commitHash);
+        conn = await db.OpenConnectionAsync();
     }
-    catch (Exception ex)
+    catch (NpgsqlException ex)
     {
-        // Log but don't fail the request — data is persisted, versioning is best-effort
-        logger.LogWarning(ex, "DOLT_COMMIT failed — data persisted but not versioned");
+        logger.LogError(ex, "DoltgreSQL unreachable");
+        return Results.Problem(
+            detail: "Database is unavailable",
+            statusCode: 503);
     }
 
-    return Results.Ok(new
+    await using (conn)
     {
-        patients = patients.Count,
-        observations = observations.Count,
-        dolt_commit = commitHash
-    });
+        // Persist patients — UPSERT for idempotent ingestion
+        foreach (var patient in patients)
+        {
+            var record = MapPatient(patient);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO patients (id, family_name, given_name, birth_date, gender)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (id) DO UPDATE SET
+                    family_name = EXCLUDED.family_name,
+                    given_name = EXCLUDED.given_name,
+                    birth_date = EXCLUDED.birth_date,
+                    gender = EXCLUDED.gender
+                """;
+            cmd.Parameters.AddWithValue(record.Id);
+            cmd.Parameters.AddWithValue(record.FamilyName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue(record.GivenName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue(record.BirthDate.HasValue
+                ? record.BirthDate.Value
+                : DBNull.Value);
+            cmd.Parameters.AddWithValue(record.Gender ?? (object)DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Persist observations — UPSERT for idempotent ingestion
+        foreach (var obs in observations)
+        {
+            var record = MapObservation(obs);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO observations (id, patient_id, code, display, value, unit, effective_date)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (id) DO UPDATE SET
+                    patient_id = EXCLUDED.patient_id,
+                    code = EXCLUDED.code,
+                    display = EXCLUDED.display,
+                    value = EXCLUDED.value,
+                    unit = EXCLUDED.unit,
+                    effective_date = EXCLUDED.effective_date
+                """;
+            cmd.Parameters.AddWithValue(record.Id);
+            cmd.Parameters.AddWithValue(record.PatientId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue(record.Code ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue(record.Display ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue(record.Value.HasValue
+                ? record.Value.Value
+                : DBNull.Value);
+            cmd.Parameters.AddWithValue(record.Unit ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue(record.EffectiveDate);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Commit the data change in DoltgreSQL for version tracking
+        string? commitHash = null;
+        try
+        {
+            await using var commitCmd = conn.CreateCommand();
+            var timestamp = DateTime.UtcNow.ToString("o");
+            commitCmd.CommandText = "SELECT DOLT_COMMIT('-Am', $1)";
+            commitCmd.Parameters.AddWithValue($"Ingest: FHIR Bundle at {timestamp}");
+            var result = await commitCmd.ExecuteScalarAsync();
+            commitHash = result?.ToString();
+            logger.LogInformation("DoltgreSQL commit: {CommitHash}", commitHash);
+        }
+        catch (Exception ex)
+        {
+            // Log but don't fail the request — data is persisted, versioning is best-effort
+            logger.LogWarning(ex, "DOLT_COMMIT failed — data persisted but not versioned");
+        }
+
+        return Results.Ok(new
+        {
+            patients = patients.Count,
+            observations = observations.Count,
+            dolt_commit = commitHash
+        });
+    }
 });
 
 app.Run();

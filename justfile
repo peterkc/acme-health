@@ -61,5 +61,5 @@ fmt-check-py:
 
 # --- Full Quality Gate ---
 
-# Run all quality gates: build, test, lint, format-check
-check: build test lint fmt-check
+# Run all quality gates: test (includes build), lint, format-check
+check: test lint fmt-check

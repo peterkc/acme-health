@@ -39,7 +39,7 @@ public class FhirIngestTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task IngestEmptyBundle_Returns422()
+    public async Task IngestBundleWithNoPatients_Returns422()
     {
         // A bundle with only Observation entries (no Patients) should return 422
         var noPatientsBundle = """

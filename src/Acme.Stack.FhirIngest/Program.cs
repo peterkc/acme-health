@@ -114,11 +114,14 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
 
     await using (conn)
     {
+        await using var transaction = await conn.BeginTransactionAsync();
+
         // Persist patients — UPSERT for idempotent ingestion
         foreach (var patient in patients)
         {
             var record = MapPatient(patient);
             await using var cmd = conn.CreateCommand();
+            cmd.Transaction = transaction;
             cmd.CommandText = """
                 INSERT INTO patients (id, family_name, given_name, birth_date, gender)
                 VALUES ($1, $2, $3, $4, $5)
@@ -143,6 +146,7 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
         {
             var record = MapObservation(obs);
             await using var cmd = conn.CreateCommand();
+            cmd.Transaction = transaction;
             cmd.CommandText = """
                 INSERT INTO observations (id, patient_id, code, display, value, unit, effective_date)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -165,6 +169,8 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             cmd.Parameters.AddWithValue(record.EffectiveDate);
             await cmd.ExecuteNonQueryAsync();
         }
+
+        await transaction.CommitAsync();
 
         // Commit the data change in DoltgreSQL for version tracking
         string? commitHash = null;
@@ -198,7 +204,7 @@ app.Run();
 // Map Firely Patient to flat PatientRecord
 static PatientRecord MapPatient(Patient patient)
 {
-    var name = patient.Name.FirstOrDefault();
+    var name = patient.Name?.FirstOrDefault();
     return new PatientRecord(
         Id: patient.Id,
         FamilyName: name?.Family ?? "",

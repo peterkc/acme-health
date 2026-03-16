@@ -21,7 +21,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ hashFiles('**/*.csproj') }}
+          key: nuget-${{ hashFiles('**/*.csproj', '**/*.slnx') }}
           restore-keys: nuget-
       - uses: astral-sh/setup-uv@v5
         with:
@@ -40,7 +40,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ hashFiles('**/*.csproj') }}
+          key: nuget-${{ hashFiles('**/*.csproj', '**/*.slnx') }}
           restore-keys: nuget-
       - uses: astral-sh/setup-uv@v5
         with:

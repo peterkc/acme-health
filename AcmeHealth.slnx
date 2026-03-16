@@ -4,4 +4,5 @@
   <Project Path="src/Acme.Stack.Core/Acme.Stack.Core.csproj" />
   <Project Path="src/Acme.Stack.FhirIngest/Acme.Stack.FhirIngest.csproj" />
   <Project Path="src/Acme.Stack.DataApi/Acme.Stack.DataApi.csproj" />
+  <Project Path="tests/Acme.Stack.FhirIngest.Tests/Acme.Stack.FhirIngest.Tests.csproj" />
 </Solution>

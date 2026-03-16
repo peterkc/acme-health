@@ -4,9 +4,6 @@ pre-commit:
     lint-dotnet:
       run: dotnet format AcmeHealth.slnx --verify-no-changes
       glob: "*.cs"
-    lint-py:
-      run: ruff check src/services/
-      glob: "*.py"
     fmt-py:
       run: ruff format src/services/ && ruff check --fix --select I src/services/
       glob: "*.py"

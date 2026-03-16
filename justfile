@@ -13,8 +13,8 @@ build:
 
 # --- Test ---
 
-# Run all tests (C# + Python)
-test: test-dotnet test-py
+# Run all tests (C# + Python) — depends on build for --no-build to work
+test: build test-dotnet test-py
 
 # Run C# tests (skip integration tests that need a live DB)
 test-dotnet:
@@ -51,8 +51,8 @@ fmt-py:
     ruff format src/services/
     ruff check --fix --select I src/services/
 
-# Check formatting without making changes
-fmt-check: lint-dotnet fmt-check-py
+# Check Python formatting without making changes (C# checked via lint-dotnet)
+fmt-check: fmt-check-py
 
 # Check Python formatting without changes
 fmt-check-py:

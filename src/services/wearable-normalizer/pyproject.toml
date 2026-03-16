@@ -1,0 +1,13 @@
+[project]
+name = "wearable-normalizer"
+version = "0.1.0"
+description = "Normalizes wearable device data (CGM, heart rate, activity)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.115.0",
+    "opentelemetry-distro>=0.50b0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.29.0",
+    "opentelemetry-instrumentation-fastapi>=0.50b0",
+    "psycopg[binary]>=3.2.0",
+    "pandas>=2.2.0",
+]

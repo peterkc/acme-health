@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/AppHost/AcmeHealth.AppHost.csproj" />
+  <Project Path="src/Acme.Stack.ServiceDefaults/AcmeHealth.ServiceDefaults.csproj" />
+  <Project Path="src/Acme.Stack.Core/Acme.Stack.Core.csproj" />
+  <Project Path="src/Acme.Stack.FhirIngest/Acme.Stack.FhirIngest.csproj" />
+  <Project Path="src/Acme.Stack.DataApi/Acme.Stack.DataApi.csproj" />
+</Solution>

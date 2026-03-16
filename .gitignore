@@ -1,0 +1,36 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.DotSettings.user
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+uv.lock
+
+# Data (large files)
+data/synthea/*.zip
+data/synthea/fhir/
+data/mtsamples/*.csv
+data/cgm/raw/
+*.ndjson
+
+# Keep data readme files
+!data/**/README.md
+
+# IDE
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
+
+# Aspire
+.aspire/
+
+# User secrets
+secrets/

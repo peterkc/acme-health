@@ -1,0 +1,6 @@
+@Acme.Stack.DataApi_HostAddress = http://localhost:5090
+
+GET {{Acme.Stack.DataApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

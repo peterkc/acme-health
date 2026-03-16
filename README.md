@@ -39,10 +39,10 @@ Aspire AppHost
 | Data API | C# (ASP.NET Core) | Shares the `Acme.Stack.Core` domain model with FHIR ingestion. One canonical patient type across both services. |
 | Wearable normalizer | Python (FastAPI) | Health data libraries (HealthKit parsers, pandas for CGM analysis) are Python-native. |
 | Clinical extractor | Python (FastAPI) | LLM SDKs (Anthropic, OpenAI), NLP libraries (spaCy), structured output parsing — Python's AI/ML ecosystem is stronger. |
-| Database | DoltgreSQL | PostgreSQL wire-compatible + git-style versioning. HIPAA audit trails at the storage layer, not in application code. See [ADR-0005](docs/adr/0005-doltgresql-versioned-clinical-data.md). |
+| Database | DoltgreSQL | PostgreSQL wire-compatible + git-style versioning. HIPAA audit trails at the storage layer, not in application code. See [ADR-1001](docs/adr/1001-doltgresql-versioned-clinical-data.md). |
 | Orchestration | .NET Aspire | Service discovery, health checks, OpenTelemetry tracing across C# and Python services. One command starts everything. |
 
-Full rationale in [ADR-0001](docs/adr/0001-polyglot-aspire-orchestration.md).
+Full rationale in [ADR-2001](docs/adr/2001-polyglot-aspire-orchestration.md).
 
 **A note on technology selection**: This demo uses C# where type safety is a clinical safety mechanism and Python where the ecosystem is strongest. In a production context, the technology mix depends on the existing codebase, team skills, and migration cost — not preference. DoltgreSQL's PostgreSQL wire compatibility means every service connects with standard drivers (Npgsql, psycopg). Switching to plain PostgreSQL is a connection string change.
 
@@ -100,11 +100,11 @@ bash data/scripts/download-samples.sh
 
 | ADR | Decision |
 |-----|----------|
-| [0001](docs/adr/0001-polyglot-aspire-orchestration.md) | C# + Python with Aspire orchestration |
-| [0002](docs/adr/0002-fhir-canonical-data-model.md) | FHIR R4 as canonical data model with extensions |
-| [0003](docs/adr/0003-monorepo-project-structure.md) | Monorepo with Aspire composition |
-| [0004](docs/adr/0004-human-in-the-loop-clinical-ai.md) | Human review for AI-derived clinical data |
-| [0005](docs/adr/0005-doltgresql-versioned-clinical-data.md) | DoltgreSQL for version-controlled clinical data |
+| [ADR-2001](docs/adr/2001-polyglot-aspire-orchestration.md) | C# + Python with Aspire orchestration |
+| [ADR-2002](docs/adr/2002-fhir-canonical-data-model.md) | FHIR R4 as canonical data model with extensions |
+| [ADR-2003](docs/adr/2003-monorepo-project-structure.md) | Monorepo with Aspire composition |
+| [ADR-2004](docs/adr/2004-human-in-the-loop-clinical-ai.md) | Human review for AI-derived clinical data |
+| [ADR-1001](docs/adr/1001-doltgresql-versioned-clinical-data.md) | DoltgreSQL for version-controlled clinical data |
 
 ## License
 

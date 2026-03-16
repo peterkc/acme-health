@@ -1,8 +1,12 @@
-# ADR-0003: Monorepo with Aspire Composition
+# ADR-2003: Monorepo with Aspire Composition
 
 ## Status
 
 Accepted
+
+## Date
+
+2026-03-16
 
 ## Context
 
@@ -12,7 +16,7 @@ The platform consists of 4 services (FHIR ingestion, data API, wearable normaliz
 
 Single monorepo with `src/` for C# projects, `src/services/` for Python services, `tools/` for CLI utilities, and `docs/` for architecture documentation and ADRs. Aspire's AppHost composes the service topology in code.
 
-## Options Considered
+## Considered Options
 
 ### 1. Separate repos per service
 
@@ -61,3 +65,7 @@ One `dotnet run --project src/AppHost` starts the entire platform. This matters 
 - The repo grows larger over time. For a startup-stage product, this is acceptable.
 - CI runs all builds and tests on every PR. Build caching (dotnet incremental build, Python uv cache) keeps this fast.
 - The `docs/adr/` directory is part of the repo because architectural decisions are as much a part of the system as the code.
+
+## Links
+
+- Implemented in: repo root structure, `src/AppHost/Program.cs`

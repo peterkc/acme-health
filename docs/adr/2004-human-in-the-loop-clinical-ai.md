@@ -1,8 +1,12 @@
-# ADR-0004: Human-in-the-Loop for Clinical AI Extraction
+# ADR-2004: Human-in-the-Loop for Clinical AI Extraction
 
 ## Status
 
 Accepted
+
+## Date
+
+2026-03-16
 
 ## Context
 
@@ -13,6 +17,18 @@ LLMs hallucinate. In a general-purpose application, a hallucinated fact is an in
 ## Decision
 
 Every AI-derived clinical field requires a confidence score. Fields below a configurable threshold enter a human review queue. No AI extraction commits to the patient record without either high confidence or human sign-off.
+
+## Considered Options
+
+### 1. Trust LLM output directly
+
+Auto-commit all AI extractions to the patient record without human review. Rely on model accuracy and post-hoc auditing to catch errors.
+
+**Rejected because**: LLMs hallucinate. A hallucinated medication or dosage is a patient safety risk, not an inconvenience. Post-hoc auditing discovers errors after they have already entered the clinical record and potentially influenced care decisions.
+
+### 2. Human review queue with confidence routing (chosen)
+
+Every AI extraction carries a confidence score. High-confidence fields auto-commit; low-confidence fields enter a human review queue. No extraction commits without either high confidence or human sign-off.
 
 ## Architecture
 
@@ -61,3 +77,9 @@ This is a first-class architectural component, not a quality filter added later.
 - The review queue needs a UI (out of scope for initial scaffold, but the API contract is defined).
 - Storage cost increases: every extraction stores the full provenance chain, not just the final field value.
 - Audit trails are comprehensive: every field in the patient record can answer "where did this come from?" — either a FHIR API source, a reviewed AI extraction, or a manual entry.
+
+## Links
+
+- Implemented in: `src/services/clinical-extractor/` (`POST /extract`, `POST /review`)
+- Extended by: [peterkc/acme-health#1](https://github.com/peterkc/acme-health/issues/1) (HITL active learning epic)
+- Research: [clinical-review-hitl](https://github.com/peterkc/acme-sdk/tree/research/clinical-review-hitl)

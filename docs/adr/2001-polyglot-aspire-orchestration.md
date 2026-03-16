@@ -1,8 +1,12 @@
-# ADR-0001: Polyglot Architecture with .NET Aspire Orchestration
+# ADR-2001: Polyglot Architecture with .NET Aspire Orchestration
 
 ## Status
 
 Accepted
+
+## Date
+
+2026-03-16
 
 ## Context
 
@@ -18,7 +22,7 @@ The job description lists Python/FastAPI as the current stack but invites a "str
 
 Use .NET Aspire as the orchestration layer, with C# for FHIR ingestion and data API services, and Python/FastAPI for wearable normalization and clinical NLP extraction.
 
-## Options Considered
+## Considered Options
 
 ### 1. Pure Python (FastAPI + Docker Compose)
 
@@ -50,3 +54,7 @@ Aspire bridges both: `AddUvicornApp()` manages Python services as first-class ci
 - The shared domain model (`Acme.Stack.Core`) is C#-only. Python services work with the same schema via database tables and API contracts.
 - Developers need familiarity with both ecosystems. At a 3-person startup, this is acceptable — founding engineers are generalists.
 - If the team grows and specializes, the service boundaries allow teams to own their language stack independently.
+
+## Links
+
+- Implemented in: initial scaffold commit (AppHost `Program.cs`)

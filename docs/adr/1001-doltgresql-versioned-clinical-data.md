@@ -1,8 +1,12 @@
-# ADR-0005: Version-Controlled Clinical Data with DoltgreSQL
+# ADR-1001: Version-Controlled Clinical Data with DoltgreSQL
 
 ## Status
 
 Accepted
+
+## Date
+
+2026-03-16
 
 ## Context
 
@@ -18,7 +22,7 @@ Traditional approaches implement these in application code: audit tables with tr
 
 Use DoltgreSQL as the primary database. DoltgreSQL is PostgreSQL wire-compatible with git-style version control built into the storage engine.
 
-## Options Considered
+## Considered Options
 
 ### 1. PostgreSQL + application-level audit tables
 
@@ -77,3 +81,7 @@ DoltgreSQL moves audit trails from application code to the storage engine. Speci
 - Data management workflows (migrations, imports, corrections) use branches instead of backup/restore cycles.
 - The Aspire AppHost runs DoltgreSQL as a container (`dolthub/doltgresql`).
 - CI/CD can branch the database per test run — true isolation without database cloning overhead.
+
+## Links
+
+- Implemented in: `src/AppHost/Program.cs` (DoltgreSQL container configuration)

@@ -1,8 +1,12 @@
-# ADR-0002: FHIR R4 as Canonical Data Model
+# ADR-2002: FHIR R4 as Canonical Data Model
 
 ## Status
 
 Accepted
+
+## Date
+
+2026-03-16
 
 ## Context
 
@@ -14,7 +18,7 @@ A canonical internal data model is needed so that all services — ingestion, AP
 
 Use FHIR R4 resources as the canonical internal data model, with typed extension points for data FHIR does not cover (wearable-specific metrics, AI confidence scores, extraction provenance).
 
-## Options Considered
+## Considered Options
 
 ### 1. FHIR R4 as-is
 
@@ -54,3 +58,7 @@ The Firely SDK (C#) supports FHIR profiles and extensions as first-class types, 
 - Custom extensions need documentation and validation rules (FHIR StructureDefinition).
 - Python services work with FHIR data as JSON — no Firely SDK equivalent, so validation happens at the C# boundary.
 - Future interoperability with other FHIR systems requires mapping custom extensions back to standard profiles (or registering them with a FHIR registry).
+
+## Links
+
+- Implemented in: `src/Acme.Stack.FhirIngest/` (FHIR R4 parsing with Firely SDK)

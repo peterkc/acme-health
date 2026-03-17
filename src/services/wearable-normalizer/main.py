@@ -107,7 +107,9 @@ async def lifespan(application: fastapi.FastAPI):
             await create_schema(conninfo)
             application.state.conninfo = conninfo
         except Exception:
-            logger.warning("DB unavailable at startup — ingest endpoints will return 503")
+            logger.warning(
+                "DB unavailable at startup — ingest endpoints will return 503"
+            )
             application.state.conninfo = None
     else:
         logger.warning("No ConnectionStrings__acme-health — DB features disabled")

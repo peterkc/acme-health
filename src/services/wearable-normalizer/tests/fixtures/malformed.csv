@@ -1,0 +1,7 @@
+timestamp,glucose_mg_dl
+2024-01-15T06:00:00Z,95
+not-a-timestamp,100
+2024-01-15T06:10:00Z,not-a-number
+2024-01-15T06:15:00Z,110
+,
+2024-01-15T06:25:00Z,125

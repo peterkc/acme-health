@@ -1,34 +1,46 @@
 # ACME Health Platform
 
-A polyglot health data platform that ingests FHIR R4 records, wearable device streams, and clinical notes into a version-controlled database (DoltgreSQL). .NET Aspire orchestrates C# and Python services — type-safe FHIR parsing where clinical data correctness matters, Python where the AI/ML ecosystem is strongest.
+> **Demo / Research Project** -- Architecture exploration for a health data platform.
+> Not production code. No real patient data. See [ADRs](docs/adr/) for design rationale.
+
+A polyglot health data platform that ingests FHIR R4 records, wearable device streams, and clinical notes into a version-controlled database (DoltgreSQL). .NET Aspire orchestrates C# and Python services -- type-safe FHIR parsing where clinical data correctness matters, Python where the AI/ML ecosystem is strongest.
 
 ## Architecture
 
-```
-Aspire AppHost
-  |
-  +-- FHIR Ingest (C# / .NET 10)
-  |     Firely SDK for type-safe R4 parsing.
-  |     Ingests from EHR systems, Synthea bundles, MIMIC-IV FHIR.
-  |
-  +-- Data API (C# / .NET 10)
-  |     Serves unified patient records.
-  |     FHIR-compatible endpoints + custom queries.
-  |
-  +-- Wearable Normalizer (Python / FastAPI)
-  |     CGM glucose streams, heart rate, steps, sleep.
-  |     Apple HealthKit, Fitbit, Dexcom formats.
-  |
-  +-- Clinical Extractor (Python / FastAPI)
-  |     LLM pipeline: clinical notes --> structured entities.
-  |     Confidence scoring + human review queue.
-  |
-  +-- DoltgreSQL
-  |     PostgreSQL-compatible, version-controlled.
-  |     Every data mutation is tracked and diffable.
-  |
-  +-- Redis
-        Caching layer.
+```mermaid
+graph TD
+    subgraph Aspire["Aspire AppHost"]
+        direction TB
+
+        subgraph CSharp["C# Services (.NET 10)"]
+            FI["FHIR Ingest<br/><i>Firely SDK</i><br/>POST /fhir/Bundle"]
+            DA["Data API<br/><i>Npgsql</i><br/>GET /patients"]
+        end
+
+        subgraph Python["Python Services (FastAPI)"]
+            WN["Wearable Normalizer<br/><i>pandas + psycopg</i><br/>POST /ingest/cgm"]
+            CE["Clinical Extractor<br/><i>Anthropic SDK</i><br/>POST /extract"]
+        end
+
+        subgraph Infra["Infrastructure"]
+            DG[("DoltgreSQL<br/><i>PG wire + git versioning</i><br/>port 5432")]
+            RD[("Redis<br/><i>cache</i>")]
+        end
+    end
+
+    EHR["EHR / Synthea"] -->|FHIR R4 Bundle| FI
+    CGM["CGM Device"] -->|CSV upload| WN
+    Notes["Clinical Notes"] -->|text| CE
+
+    FI -->|Npgsql| DG
+    DA -->|Npgsql| DG
+    WN -->|psycopg| DG
+    CE -->|psycopg| DG
+
+    FI --> RD
+    DA --> RD
+
+    DG -->|dolt_log, dolt_diff| Audit["Audit Trail"]
 ```
 
 ## Technology Choices

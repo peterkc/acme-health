@@ -70,12 +70,17 @@ Full rationale in [ADR-2001](docs/adr/2001-polyglot-aspire-orchestration.md).
 # One-time setup: configure the Dolt database password via User Secrets
 dotnet user-secrets set Parameters:dolt-password doltpass --project src/AppHost
 
-# Start the full platform (Aspire dashboard at https://localhost:15888)
+# Start the full platform (Aspire dashboard opens automatically)
 dotnet run --project src/AppHost
 
-# Or run individual services
-dotnet run --project src/Acme.Stack.FhirIngest
-cd src/services/wearable-normalizer && uv run fastapi dev
+# Smoke test: ingest sample data
+# (Find service URLs in the Aspire dashboard Resources tab)
+curl -X POST https://localhost:<fhir-port>/fhir/Bundle \
+  -H "Content-Type: application/json" \
+  -d @data/synthea/sample.json
+
+curl -X POST https://localhost:<normalizer-port>/ingest/cgm \
+  -F file=@data/cgm/sample.csv
 ```
 
 ## Project Structure

@@ -4,9 +4,13 @@ var builder = DistributedApplication.CreateBuilder(args);
 // Every change to clinical data is tracked, diffable, and revertable
 var dbPassword = builder.AddParameter("dolt-password", secret: true);
 var dolt = builder.AddMySql("dolt", password: dbPassword)
-    .WithImage("dolthub/dolt-sql-server", "v1.50.2")
+    .WithImage("dolthub/dolt-sql-server", "1.83.6")
     .WithImageRegistry("docker.io")
+    // Dolt uses DOLT_* env vars, not MYSQL_* (Aspire's AddMySql sets MYSQL_ROOT_PASSWORD
+    // which Dolt ignores). See: github.com/dolthub/dolt/blob/main/docker/serverREADME.md
     .WithEnvironment("DOLT_ROOT_HOST", "%")
+    .WithEnvironment("DOLT_ROOT_PASSWORD", dbPassword)
+    .WithEnvironment("DOLT_DATABASE", "acme_health")
     .WithDataVolume("dolt-data")
     .WithLifetime(ContainerLifetime.Persistent);
 var db = dolt.AddDatabase("acme-health", databaseName: "acme_health");

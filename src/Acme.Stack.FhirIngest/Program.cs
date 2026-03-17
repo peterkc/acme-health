@@ -180,10 +180,11 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
         {
             await using var commitCmd = conn.CreateCommand();
             var timestamp = DateTime.UtcNow.ToString("o");
-            commitCmd.CommandText = "SELECT DOLT_COMMIT('-Am', @msg)";
+            commitCmd.CommandText = "CALL DOLT_COMMIT('-Am', @msg)";
             commitCmd.Parameters.AddWithValue("@msg", $"Ingest: FHIR Bundle at {timestamp}");
-            var result = await commitCmd.ExecuteScalarAsync();
-            commitHash = result?.ToString();
+            await using var commitReader = await commitCmd.ExecuteReaderAsync();
+            if (await commitReader.ReadAsync())
+                commitHash = commitReader.GetString(0);
             logger.LogInformation("Dolt commit: {CommitHash}", commitHash);
         }
         catch (Exception ex)

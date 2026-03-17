@@ -268,7 +268,7 @@ async def ingest_cgm(file: UploadFile) -> dict:
                 async with conn.cursor() as cur:
                     timestamp = datetime.now(UTC).isoformat()
                     await cur.execute(
-                        "SELECT DOLT_COMMIT('-Am', %s)",
+                        "CALL DOLT_COMMIT('-Am', %s)",
                         (f"Ingest: CGM {filename} at {timestamp}",),
                     )
                     row_result = await cur.fetchone()

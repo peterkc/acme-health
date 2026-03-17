@@ -8,7 +8,7 @@ dependencies = [
     "opentelemetry-distro>=0.50b0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.29.0",
     "opentelemetry-instrumentation-fastapi>=0.50b0",
-    "psycopg[binary]>=3.2.0",
+    "aiomysql>=0.2.0",
     "pandas>=2.2.0",
 ]
 
@@ -22,7 +22,7 @@ dev = [
 
 [tool.pytest.ini_options]
 markers = [
-    "integration: tests requiring a live DoltgreSQL connection",
+    "integration: tests requiring a live Dolt MySQL connection",
 ]
 asyncio_mode = "auto"
 

@@ -6,32 +6,50 @@ from main import parse_cgm_csv, parse_connection_string
 
 
 class TestParseConnectionString:
-    """Test .NET connection string conversion to psycopg DSN."""
+    """Test .NET MySQL connection string conversion to aiomysql kwargs."""
 
     def test_standard_format(self):
-        raw = "Host=localhost;Port=5432;Username=root;Database=acme_health"
+        raw = "Server=localhost;Port=3306;User ID=root;Database=acme_health"
         result = parse_connection_string(raw)
-        assert "host=localhost" in result
-        assert "port=5432" in result
-        assert "user=root" in result
-        assert "dbname=acme_health" in result
+        assert result["host"] == "localhost"
+        assert result["port"] == 3306
+        assert result["user"] == "root"
+        assert result["db"] == "acme_health"
 
     def test_with_password(self):
-        raw = "Host=db;Port=5432;Username=admin;Password=secret;Database=mydb"
+        raw = "Server=db;Port=3306;User ID=admin;Password=secret;Database=mydb"
         result = parse_connection_string(raw)
-        assert "password=secret" in result
-        assert "user=admin" in result
+        assert result["password"] == "secret"
+        assert result["user"] == "admin"
 
     def test_trailing_semicolons(self):
-        raw = "Host=localhost;Port=5432;Username=root;Database=acme_health;"
+        raw = "Server=localhost;Port=3306;User ID=root;Database=acme_health;"
         result = parse_connection_string(raw)
-        assert "host=localhost" in result
+        assert result["host"] == "localhost"
 
     def test_case_insensitive_keys(self):
-        raw = "host=localhost;port=5432;username=root;database=acme_health"
+        raw = "server=localhost;port=3306;user id=root;database=acme_health"
         result = parse_connection_string(raw)
-        assert "host=localhost" in result
-        assert "user=root" in result
+        assert result["host"] == "localhost"
+        assert result["user"] == "root"
+
+    def test_missing_host_raises(self):
+        raw = "Port=3306;User ID=root;Database=acme_health"
+        with pytest.raises(ValueError, match="host"):
+            parse_connection_string(raw)
+
+    def test_missing_db_raises(self):
+        raw = "Server=localhost;Port=3306;User ID=root"
+        with pytest.raises(ValueError, match="db"):
+            parse_connection_string(raw)
+
+    def test_alternative_key_names(self):
+        """Host and Username are accepted as aliases."""
+        raw = "Host=myhost;Port=3306;Username=admin;Database=mydb"
+        result = parse_connection_string(raw)
+        assert result["host"] == "myhost"
+        assert result["user"] == "admin"
+        assert result["db"] == "mydb"
 
 
 class TestParseCgmCsv:

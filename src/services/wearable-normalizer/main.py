@@ -1,4 +1,4 @@
-"""Wearable Normalizer — CGM CSV ingestion with DoltgreSQL persistence."""
+"""Wearable Normalizer — CGM CSV ingestion with Dolt MySQL persistence."""
 
 import io
 import logging
@@ -7,9 +7,9 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import aiomysql
 import fastapi
 import pandas as pd
-import psycopg
 from fastapi import HTTPException, UploadFile
 
 # 10 MB — sufficient for months of 5-minute interval CGM data
@@ -20,10 +20,10 @@ logger = logging.getLogger("wearable-normalizer")
 # SQL: cgm_readings table schema (idempotent via IF NOT EXISTS)
 CREATE_CGM_READINGS = """
 CREATE TABLE IF NOT EXISTS cgm_readings (
-    id SERIAL PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     timestamp_utc TIMESTAMP NOT NULL,
-    glucose_mg_dl DECIMAL NOT NULL,
-    source_file TEXT,
+    glucose_mg_dl DECIMAL(18,4) NOT NULL,
+    source_file VARCHAR(255),
     ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -33,35 +33,35 @@ TIMESTAMP_COLUMNS = ("timestamp", "time", "datetime", "date_time", "timestamp_ut
 GLUCOSE_COLUMNS = ("glucose_mg_dl", "glucose", "value", "glucose_value", "mg_dl")
 
 
-def parse_connection_string(dotnet_conn_str: str) -> str:
-    """Convert .NET connection string to psycopg DSN format.
+def parse_connection_string(dotnet_conn_str: str) -> dict:
+    """Convert .NET MySQL connection string to aiomysql kwargs.
 
-    .NET format: Host=localhost;Port=5432;Username=root;Database=acme_health
-    psycopg format: host=localhost port=5432 user=root dbname=acme_health
+    Input:  Server=localhost;Port=3306;User ID=root;Password=pw;Database=acme_health
+    Output: {"host": "localhost", "port": 3306, "user": "root",
+             "password": "pw", "db": "acme_health"}
     """
     key_map = {
+        "server": "host",
         "host": "host",
         "port": "port",
-        "username": "user",
+        "user id": "user",
         "user": "user",
-        "database": "dbname",
+        "username": "user",
         "password": "password",
+        "database": "db",
+        "initial catalog": "db",
     }
-    parts = []
+    result = {}
     for pair in dotnet_conn_str.split(";"):
         pair = pair.strip()
-        if not pair:
-            continue
-        if "=" not in pair:
+        if not pair or "=" not in pair:
             continue
         key, value = pair.split("=", 1)
-        pg_key = key_map.get(key.strip().lower())
-        if pg_key:
-            parts.append(f"{pg_key}={value.strip()}")
-    result = " ".join(parts)
-    # Validate required keys are present
-    parsed_keys = {p.split("=", 1)[0] for p in parts}
-    missing = {"host", "dbname"} - parsed_keys
+        mapped = key_map.get(key.strip().lower())
+        if mapped:
+            result[mapped] = int(value.strip()) if mapped == "port" else value.strip()
+
+    missing = {"host", "db"} - set(result.keys())
     if missing:
         raise ValueError(
             f"Connection string missing required keys ({', '.join(sorted(missing))}): "
@@ -70,22 +70,26 @@ def parse_connection_string(dotnet_conn_str: str) -> str:
     return result
 
 
-def get_connection_string() -> str | None:
+def get_connection_string() -> dict | None:
     """Read and convert the Aspire-injected connection string."""
-    raw = os.environ.get("ConnectionStrings__doltgresql")
+    raw = os.environ.get("ConnectionStrings__acme-health")
     if not raw:
         return None
     return parse_connection_string(raw)
 
 
-async def create_schema(conninfo: str) -> None:
+async def create_schema(conn_kwargs: dict) -> None:
     """Create cgm_readings table on startup (idempotent)."""
     try:
-        async with await psycopg.AsyncConnection.connect(conninfo) as conn:
-            await conn.execute(CREATE_CGM_READINGS)
+        conn = await aiomysql.connect(**conn_kwargs)
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(CREATE_CGM_READINGS)
             await conn.commit()
             logger.info("Database schema initialized (cgm_readings)")
-    except psycopg.Error as exc:
+        finally:
+            conn.close()
+    except Exception as exc:
         logger.warning("Failed to initialize database schema: %s", exc)
 
 
@@ -97,7 +101,7 @@ async def lifespan(application: fastapi.FastAPI):
         await create_schema(conninfo)
         application.state.conninfo = conninfo
     else:
-        logger.warning("No ConnectionStrings__doltgresql — DB features disabled")
+        logger.warning("No ConnectionStrings__acme-health — DB features disabled")
         application.state.conninfo = None
     yield
 
@@ -182,11 +186,11 @@ async def ingest_cgm(file: UploadFile) -> dict:
 
     FR-020: Parse glucose readings (timestamp, glucose_mg_dl) from CSV.
     FR-021: Normalize timestamps to UTC ISO 8601.
-    FR-022: Persist to cgm_readings table via psycopg.
+    FR-022: Persist to cgm_readings table via aiomysql.
     FR-023: Return summary with reading count and time range.
     FR-031: Skip malformed rows, include warning count.
     """
-    conninfo: str | None = getattr(app.state, "conninfo", None)
+    conninfo: dict | None = getattr(app.state, "conninfo", None)
 
     # FR-032: Database must be configured (consistent with C# FHIR ingest)
     if conninfo is None:
@@ -224,9 +228,10 @@ async def ingest_cgm(file: UploadFile) -> dict:
     start_ts = df["timestamp_utc"].min().isoformat()
     end_ts = df["timestamp_utc"].max().isoformat()
 
-    # Persist to DoltgreSQL (FR-022) — batch insert for NFR-002 performance
+    # Persist to Dolt MySQL (FR-022) — batch insert for NFR-002 performance
     try:
-        async with await psycopg.AsyncConnection.connect(conninfo) as conn:
+        conn = await aiomysql.connect(**conninfo)
+        try:
             async with conn.cursor() as cur:
                 # Build parameter tuples for executemany (batch insert)
                 params = [
@@ -245,7 +250,7 @@ async def ingest_cgm(file: UploadFile) -> dict:
                 )
             await conn.commit()
 
-            # DoltgreSQL version tracking — best-effort
+            # Dolt MySQL version tracking — best-effort
             dolt_commit_hash = None
             versioning_warning = None
             try:
@@ -257,15 +262,17 @@ async def ingest_cgm(file: UploadFile) -> dict:
                     )
                     row_result = await cur.fetchone()
                     dolt_commit_hash = row_result[0] if row_result else None
-                    logger.info("DoltgreSQL commit: %s", dolt_commit_hash)
+                    logger.info("Dolt commit: %s", dolt_commit_hash)
             except Exception as exc:
                 # Log but don't fail — data is persisted, versioning is best-effort
                 logger.warning("DOLT_COMMIT failed: %s", exc)
                 versioning_warning = f"DOLT_COMMIT failed: {exc}"
+        finally:
+            conn.close()
 
-    except psycopg.Error as exc:
-        # FR-032: DoltgreSQL unreachable returns HTTP 503
-        logger.error("DoltgreSQL unreachable: %s", exc)
+    except Exception as exc:
+        # FR-032: Dolt MySQL unreachable returns HTTP 503
+        logger.error("Dolt MySQL unreachable: %s", exc)
         raise HTTPException(status_code=503, detail="Database is unavailable") from exc
 
     result: dict = {

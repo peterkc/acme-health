@@ -10,28 +10,25 @@ A polyglot health data platform that ingests FHIR R4 records, wearable device st
 ### Platform Overview
 
 ```
-                        .NET Aspire AppHost
-  ┌─────────────────────────────────────────────────────────┐
-  │                                                         │
-  │  C# (.NET 10)              Python (FastAPI)             │
-  │  ┌──────────────────┐      ┌───────────────────────┐    │
-  │  │ FHIR Ingest      │      │ Wearable Normalizer   │    │
-  │  │ POST /fhir/Bundle│      │ POST /ingest/cgm      │    │
-  │  ├──────────────────┤      ├───────────────────────┤    │
-  │  │ Data API         │      │ Clinical Extractor    │    │
-  │  │ GET /patients    │      │ POST /extract         │    │
-  │  └────────┬─────────┘      └───────────┬───────────┘    │
-  │           │  MySqlConnector             │  aiomysql      │
-  │           └──────────┬──────────────────┘                │
-  │                      v                                   │
-  │              ┌───────────────┐    ┌───────┐              │
-  │              │  Dolt MySQL   │    │ Redis │              │
-  │              │  port 3306    │    │ cache │              │
-  │              └───────┬───────┘    └───────┘              │
-  └──────────────────────┼──────────────────────────────────┘
-                         v
-                   Audit Trail
-              (dolt_log, dolt_diff)
+  .NET Aspire AppHost
+  |
+  |-- C# Services (.NET 10)          Python Services (FastAPI)
+  |   |                              |
+  |   |-- FHIR Ingest                |-- Wearable Normalizer
+  |   |   POST /fhir/Bundle          |   POST /ingest/cgm
+  |   |                              |
+  |   |-- Data API                   |-- Clinical Extractor
+  |       GET /patients              |   POST /extract
+  |       |                          |
+  |       | MySqlConnector           | aiomysql
+  |       v                          v
+  |   +----------+    +---------+
+  |   | Dolt MySQL|    |  Redis  |
+  |   | port 3306 |    |  cache  |
+  |   +-----+-----+    +---------+
+  |         |
+  |         v
+  |   Audit Trail (dolt_log, dolt_diff)
 ```
 
 ### Data Flow
@@ -39,21 +36,23 @@ A polyglot health data platform that ingests FHIR R4 records, wearable device st
 Each data source has a dedicated ingestion path. All paths converge on Dolt MySQL, where every write is version-tracked.
 
 ```
-  EHR / Synthea ──── FHIR R4 Bundle (JSON) ──> FHIR Ingest ──┐
-                                                               │
-  CGM Device ─────── CSV upload ────────────> Wearable    ─────┤
-                                              Normalizer       │
-  Clinical Notes ─── free text ─────────────> Clinical    ─────┤
-                                              Extractor        │
-                                                               v
-                                                         Dolt MySQL
-                                                        (acme_health)
-                                                               │
-                                                 CALL DOLT_COMMIT(...)
-                                                               │
-                                                               v
-                                                      version history
-                                                   (immutable audit log)
+  EHR / Synthea ----> FHIR Ingest ----------+
+                      (Firely SDK, C#)      |
+                                            |
+  CGM Device -------> Wearable Normalizer --+
+                      (pandas, Python)      |
+                                            |
+  Clinical Notes ---> Clinical Extractor ---+
+                      (Anthropic SDK)       |
+                                            v
+                                       Dolt MySQL
+                                      (acme_health)
+                                            |
+                              CALL DOLT_COMMIT('-Am', ...)
+                                            |
+                                            v
+                                     version history
+                                   (immutable audit log)
 ```
 
 ### Why Dolt
@@ -61,17 +60,17 @@ Each data source has a dedicated ingestion path. All paths converge on Dolt MySQ
 Dolt is MySQL with git-style version control built into the storage engine. Every `INSERT` or `UPDATE` can be followed by a `DOLT_COMMIT`, creating an immutable audit trail without application-level logging.
 
 ```
-  Standard MySQL                          Dolt MySQL
-  ─────────────                           ──────────
-  INSERT INTO patients ...                INSERT INTO patients ...
-  -- done                                 CALL DOLT_COMMIT('-Am', 'Ingest: FHIR Bundle')
-                                          -- now queryable:
-                                          SELECT * FROM dolt_log        -- commit history
-                                          SELECT * FROM dolt_diff(...)  -- row-level changes
-                                          CALL DOLT_CHECKOUT('main~1')  -- time travel
+  Standard MySQL                      Dolt MySQL
+  --------------                      ----------
+  INSERT INTO patients ...            INSERT INTO patients ...
+  -- done                             CALL DOLT_COMMIT('-Am', 'Ingest: FHIR Bundle')
+                                      -- now queryable:
+                                      SELECT * FROM dolt_log        -- commit history
+                                      SELECT * FROM dolt_diff(...)  -- row-level changes
+                                      CALL DOLT_CHECKOUT('main~1')  -- time travel
 ```
 
-Switching to plain MySQL is a connection string change — remove the `DOLT_COMMIT` calls and everything else works unchanged.
+Switching to plain MySQL is a connection string change -- remove the `DOLT_COMMIT` calls and everything else works unchanged.
 
 ## Technology Choices
 

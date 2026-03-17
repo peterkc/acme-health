@@ -7,41 +7,14 @@ A polyglot health data platform that ingests FHIR R4 records, wearable device st
 
 ## Architecture
 
-```mermaid
-graph TD
-    subgraph Aspire["Aspire AppHost"]
-        direction TB
+![Architecture](docs/diagrams/architecture.svg)
 
-        subgraph CSharp["C# Services (.NET 10)"]
-            FI["FHIR Ingest<br/><i>Firely SDK</i><br/>POST /fhir/Bundle"]
-            DA["Data API<br/><i>MySqlConnector</i><br/>GET /patients"]
-        end
+<details>
+<summary>Diagram source (D2)</summary>
 
-        subgraph Python["Python Services (FastAPI)"]
-            WN["Wearable Normalizer<br/><i>pandas + aiomysql</i><br/>POST /ingest/cgm"]
-            CE["Clinical Extractor<br/><i>Anthropic SDK</i><br/>POST /extract"]
-        end
+The architecture diagram is generated from [`docs/diagrams/architecture.d2`](docs/diagrams/architecture.d2) using [D2](https://d2lang.com) with theme 200 and post-processed for Inter font and rounded corners.
 
-        subgraph Infra["Infrastructure"]
-            DG[("Dolt MySQL<br/><i>MySQL wire + git versioning</i><br/>port 3306")]
-            RD[("Redis<br/><i>cache</i>")]
-        end
-    end
-
-    EHR["EHR / Synthea"] -->|FHIR R4 Bundle| FI
-    CGM["CGM Device"] -->|CSV upload| WN
-    Notes["Clinical Notes"] -->|text| CE
-
-    FI -->|MySqlConnector| DG
-    DA -->|MySqlConnector| DG
-    WN -->|aiomysql| DG
-    CE -->|aiomysql| DG
-
-    FI --> RD
-    DA --> RD
-
-    DG -->|dolt_log, dolt_diff| Audit["Audit Trail"]
-```
+</details>
 
 ## Technology Choices
 

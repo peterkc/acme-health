@@ -1,0 +1,133 @@
+direction: right
+
+# --- Data Sources (left) ---
+sources: Data Sources {
+  style.fill: transparent
+  style.stroke: transparent
+
+  ehr: EHR / Synthea {
+    style.fill: "#f0f4f8"
+    style.stroke: "#94a3b8"
+    style.font-color: "#334155"
+  }
+  cgm: CGM Device {
+    style.fill: "#f0f4f8"
+    style.stroke: "#94a3b8"
+    style.font-color: "#334155"
+  }
+  notes: Clinical Notes {
+    style.fill: "#f0f4f8"
+    style.stroke: "#94a3b8"
+    style.font-color: "#334155"
+  }
+}
+
+# --- Aspire AppHost (center) ---
+aspire: ".NET Aspire AppHost" {
+  style.fill: "#f8fafc"
+  style.stroke: "#6366f1"
+  style.stroke-width: 2
+  style.font-color: "#312e81"
+
+  csharp: "C# Services (.NET 10)" {
+    style.fill: "#eef2ff"
+    style.stroke: "#818cf8"
+    style.font-color: "#3730a3"
+
+    fhir: "FHIR Ingest\nFilery SDK\nPOST /fhir/Bundle" {
+      style.fill: "#c7d2fe"
+      style.stroke: "#6366f1"
+      style.font-color: "#312e81"
+    }
+    data-api: "Data API\nMySqlConnector\nGET /patients" {
+      style.fill: "#c7d2fe"
+      style.stroke: "#6366f1"
+      style.font-color: "#312e81"
+    }
+  }
+
+  python: "Python Services (FastAPI)" {
+    style.fill: "#ecfdf5"
+    style.stroke: "#34d399"
+    style.font-color: "#064e3b"
+
+    normalizer: "Wearable Normalizer\npandas + aiomysql\nPOST /ingest/cgm" {
+      style.fill: "#a7f3d0"
+      style.stroke: "#10b981"
+      style.font-color: "#064e3b"
+    }
+    extractor: "Clinical Extractor\nAnthropic SDK\nPOST /extract" {
+      style.fill: "#a7f3d0"
+      style.stroke: "#10b981"
+      style.font-color: "#064e3b"
+    }
+  }
+
+  infra: Infrastructure {
+    style.fill: "#fff7ed"
+    style.stroke: "#f97316"
+    style.font-color: "#7c2d12"
+
+    dolt: "Dolt MySQL\nMySQL wire + git versioning\nport 3306" {
+      shape: cylinder
+      style.fill: "#fed7aa"
+      style.stroke: "#ea580c"
+      style.font-color: "#7c2d12"
+    }
+    redis: "Redis\ncache" {
+      shape: cylinder
+      style.fill: "#fed7aa"
+      style.stroke: "#ea580c"
+      style.font-color: "#7c2d12"
+    }
+  }
+}
+
+# --- Audit Trail (right) ---
+audit: "Audit Trail\ndolt_log · dolt_diff" {
+  style.fill: "#fef3c7"
+  style.stroke: "#d97706"
+  style.font-color: "#78350f"
+  style.font-size: 14
+}
+
+# --- Connections: Sources → Services ---
+sources.ehr -> aspire.csharp.fhir: FHIR R4 Bundle {
+  style.stroke: "#6366f1"
+}
+sources.cgm -> aspire.python.normalizer: CSV upload {
+  style.stroke: "#10b981"
+}
+sources.notes -> aspire.python.extractor: text {
+  style.stroke: "#10b981"
+}
+
+# --- Connections: Services → Database ---
+aspire.csharp.fhir -> aspire.infra.dolt: MySqlConnector {
+  style.stroke: "#ea580c"
+}
+aspire.csharp.data-api -> aspire.infra.dolt: MySqlConnector {
+  style.stroke: "#ea580c"
+}
+aspire.python.normalizer -> aspire.infra.dolt: aiomysql {
+  style.stroke: "#ea580c"
+}
+aspire.python.extractor -> aspire.infra.dolt: aiomysql {
+  style.stroke: "#ea580c"
+}
+
+# --- Connections: Services → Redis ---
+aspire.csharp.fhir -> aspire.infra.redis {
+  style.stroke: "#f97316"
+  style.stroke-dash: 3
+}
+aspire.csharp.data-api -> aspire.infra.redis {
+  style.stroke: "#f97316"
+  style.stroke-dash: 3
+}
+
+# --- Connections: Database → Audit ---
+aspire.infra.dolt -> audit: "version history" {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+}

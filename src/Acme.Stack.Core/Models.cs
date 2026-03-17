@@ -51,7 +51,7 @@ public static class Schema
             display VARCHAR(500),
             value DECIMAL(18,4),
             unit VARCHAR(100),
-            effective_date TIMESTAMP,
+            effective_date DATETIME,
             ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_patient FOREIGN KEY (patient_id) REFERENCES patients(id)
         )

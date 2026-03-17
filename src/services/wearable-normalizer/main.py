@@ -21,7 +21,7 @@ logger = logging.getLogger("wearable-normalizer")
 CREATE_CGM_READINGS = """
 CREATE TABLE IF NOT EXISTS cgm_readings (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    timestamp_utc TIMESTAMP NOT NULL,
+    timestamp_utc DATETIME NOT NULL,
     glucose_mg_dl DECIMAL(18,4) NOT NULL,
     source_file VARCHAR(255),
     ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -79,7 +79,10 @@ def get_connection_string() -> dict | None:
 
 
 async def create_schema(conn_kwargs: dict) -> None:
-    """Create cgm_readings table on startup (idempotent)."""
+    """Create cgm_readings table on startup (idempotent).
+
+    Raises on failure so the lifespan can decide whether to proceed without DB.
+    """
     conn = None
     try:
         conn = await aiomysql.connect(**conn_kwargs)
@@ -87,8 +90,9 @@ async def create_schema(conn_kwargs: dict) -> None:
             await cur.execute(CREATE_CGM_READINGS)
         await conn.commit()
         logger.info("Database schema initialized (cgm_readings)")
-    except Exception as exc:
-        logger.warning("Failed to initialize database schema: %s", exc)
+    except Exception:
+        logger.exception("Failed to initialize database schema")
+        raise
     finally:
         if conn:
             conn.close()
@@ -99,8 +103,12 @@ async def lifespan(application: fastapi.FastAPI):
     """Run startup tasks: schema creation."""
     conninfo = get_connection_string()
     if conninfo:
-        await create_schema(conninfo)
-        application.state.conninfo = conninfo
+        try:
+            await create_schema(conninfo)
+            application.state.conninfo = conninfo
+        except Exception:
+            logger.warning("DB unavailable at startup — ingest endpoints will return 503")
+            application.state.conninfo = None
     else:
         logger.warning("No ConnectionStrings__acme-health — DB features disabled")
         application.state.conninfo = None

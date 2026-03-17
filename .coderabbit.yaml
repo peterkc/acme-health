@@ -26,7 +26,7 @@ reviews:
   path_filters:
     - "!data/**"                # Sample datasets (large CSVs)
     - "!docs/adr/**"            # Architecture decision records
-    - "!**/*.md"                # Markdown documentation
+    # Markdown reviewed — demo-critical (README, ADR, diagrams)
     - "!**/__pycache__/**"      # Python bytecode
     - "!**/uv.lock"             # Lock file
 
@@ -53,7 +53,7 @@ reviews:
       instructions: |
         Focus on correctness, null safety, async/await patterns, and SQL
         injection risks. Skip formatting issues that dotnet format handles.
-        DoltgreSQL-specific SQL (DOLT_COMMIT, dolt_log) is intentional.
+        Dolt-specific SQL (DOLT_COMMIT, dolt_log) is intentional.
     - path: "justfile"
       instructions: |
         Check recipe dependencies and cross-recipe consistency. Verify that

@@ -27,32 +27,33 @@ public record ObservationRecord(
 );
 
 /// <summary>
-/// SQL schema constants for DoltgreSQL table creation.
+/// SQL schema constants for Dolt MySQL table creation.
 /// Each service creates its own tables on startup with CREATE TABLE IF NOT EXISTS.
 /// </summary>
 public static class Schema
 {
     public const string CreatePatients = """
         CREATE TABLE IF NOT EXISTS patients (
-            id TEXT PRIMARY KEY,
-            family_name TEXT,
-            given_name TEXT,
+            id VARCHAR(255) PRIMARY KEY,
+            family_name VARCHAR(255),
+            given_name VARCHAR(255),
             birth_date DATE,
-            gender TEXT,
+            gender VARCHAR(50),
             ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """;
 
     public const string CreateObservations = """
         CREATE TABLE IF NOT EXISTS observations (
-            id TEXT PRIMARY KEY,
-            patient_id TEXT REFERENCES patients(id),
-            code TEXT,
-            display TEXT,
-            value DECIMAL,
-            unit TEXT,
+            id VARCHAR(255) PRIMARY KEY,
+            patient_id VARCHAR(255),
+            code VARCHAR(255),
+            display VARCHAR(500),
+            value DECIMAL(18,4),
+            unit VARCHAR(100),
             effective_date TIMESTAMP,
-            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_patient FOREIGN KEY (patient_id) REFERENCES patients(id)
         )
         """;
 }

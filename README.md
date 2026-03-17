@@ -85,7 +85,12 @@ Switching to plain MySQL is a connection string change -- remove the `DOLT_COMMI
 
 Full rationale in [ADR-2001](docs/adr/2001-polyglot-aspire-orchestration.md).
 
-**A note on technology selection**: This demo uses C# where type safety is a clinical safety mechanism and Python where the ecosystem is strongest. In a production context, the technology mix depends on the existing codebase, team skills, and migration cost — not preference. Dolt MySQL's MySQL wire compatibility means every service connects with standard drivers (MySqlConnector, aiomysql). Switching to plain MySQL is a connection string change.
+**A note on technology selection:**
+
+- **C# where type safety is a clinical safety mechanism** -- FHIR R4 has nested resource types where a wrong field type can mean a wrong medication dose. The compiler catches these at build time.
+- **Python where the ecosystem is strongest** -- LLM SDKs, NLP libraries, and health data parsers are Python-native. No point wrapping them.
+- **In production, the mix depends on context** -- existing codebase, team skills, and migration cost matter more than preference.
+- **Dolt MySQL is a standard MySQL connection** -- every service connects with standard drivers (MySqlConnector, aiomysql). Switching to plain MySQL is a connection string change.
 
 ## Prerequisites
 

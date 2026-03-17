@@ -67,6 +67,9 @@ Full rationale in [ADR-2001](docs/adr/2001-polyglot-aspire-orchestration.md).
 ## Quick Start
 
 ```bash
+# One-time setup: configure the Dolt database password via User Secrets
+dotnet user-secrets set Parameters:dolt-password doltpass --project src/AppHost
+
 # Start the full platform (Aspire dashboard at https://localhost:15888)
 dotnet run --project src/AppHost
 

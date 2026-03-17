@@ -125,11 +125,12 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             cmd.CommandText = """
                 INSERT INTO patients (id, family_name, given_name, birth_date, gender)
                 VALUES (@id, @familyName, @givenName, @birthDate, @gender)
+                AS new
                 ON DUPLICATE KEY UPDATE
-                    family_name = VALUES(family_name),
-                    given_name = VALUES(given_name),
-                    birth_date = VALUES(birth_date),
-                    gender = VALUES(gender)
+                    family_name = new.family_name,
+                    given_name = new.given_name,
+                    birth_date = new.birth_date,
+                    gender = new.gender
                 """;
             cmd.Parameters.AddWithValue("@id", record.Id);
             cmd.Parameters.AddWithValue("@familyName", record.FamilyName ?? (object)DBNull.Value);
@@ -150,13 +151,14 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             cmd.CommandText = """
                 INSERT INTO observations (id, patient_id, code, display, value, unit, effective_date)
                 VALUES (@id, @patientId, @code, @display, @value, @unit, @effectiveDate)
+                AS new
                 ON DUPLICATE KEY UPDATE
-                    patient_id = VALUES(patient_id),
-                    code = VALUES(code),
-                    display = VALUES(display),
-                    value = VALUES(value),
-                    unit = VALUES(unit),
-                    effective_date = VALUES(effective_date)
+                    patient_id = new.patient_id,
+                    code = new.code,
+                    display = new.display,
+                    value = new.value,
+                    unit = new.unit,
+                    effective_date = new.effective_date
                 """;
             cmd.Parameters.AddWithValue("@id", record.Id);
             cmd.Parameters.AddWithValue("@patientId", record.PatientId ?? (object)DBNull.Value);

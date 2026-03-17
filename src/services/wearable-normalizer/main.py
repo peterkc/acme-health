@@ -80,17 +80,18 @@ def get_connection_string() -> dict | None:
 
 async def create_schema(conn_kwargs: dict) -> None:
     """Create cgm_readings table on startup (idempotent)."""
+    conn = None
     try:
         conn = await aiomysql.connect(**conn_kwargs)
-        try:
-            async with conn.cursor() as cur:
-                await cur.execute(CREATE_CGM_READINGS)
-            await conn.commit()
-            logger.info("Database schema initialized (cgm_readings)")
-        finally:
-            conn.close()
+        async with conn.cursor() as cur:
+            await cur.execute(CREATE_CGM_READINGS)
+        await conn.commit()
+        logger.info("Database schema initialized (cgm_readings)")
     except Exception as exc:
         logger.warning("Failed to initialize database schema: %s", exc)
+    finally:
+        if conn:
+            conn.close()
 
 
 @asynccontextmanager

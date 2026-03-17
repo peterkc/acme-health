@@ -7,7 +7,7 @@ sequenceDiagram
     actor Client
     participant FI as FHIR Ingest<br/>(C# / .NET 10)
     participant Firely as Firely SDK
-    participant DB as DoltgreSQL
+    participant DB as Dolt MySQL
     participant Dolt as Dolt Versioning
 
     Client->>FI: POST /fhir/Bundle<br/>(Synthea JSON)

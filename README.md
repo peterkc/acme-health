@@ -3,7 +3,7 @@
 > **Demo / Research Project** -- Architecture exploration for a health data platform.
 > Not production code. No real patient data. See [ADRs](docs/adr/) for design rationale.
 
-A polyglot health data platform that ingests FHIR R4 records, wearable device streams, and clinical notes into a version-controlled database (DoltgreSQL). .NET Aspire orchestrates C# and Python services -- type-safe FHIR parsing where clinical data correctness matters, Python where the AI/ML ecosystem is strongest.
+A polyglot health data platform that ingests FHIR R4 records, wearable device streams, and clinical notes into a version-controlled database (Dolt MySQL). .NET Aspire orchestrates C# and Python services -- type-safe FHIR parsing where clinical data correctness matters, Python where the AI/ML ecosystem is strongest.
 
 ## Architecture
 
@@ -14,16 +14,16 @@ graph TD
 
         subgraph CSharp["C# Services (.NET 10)"]
             FI["FHIR Ingest<br/><i>Firely SDK</i><br/>POST /fhir/Bundle"]
-            DA["Data API<br/><i>Npgsql</i><br/>GET /patients"]
+            DA["Data API<br/><i>MySqlConnector</i><br/>GET /patients"]
         end
 
         subgraph Python["Python Services (FastAPI)"]
-            WN["Wearable Normalizer<br/><i>pandas + psycopg</i><br/>POST /ingest/cgm"]
+            WN["Wearable Normalizer<br/><i>pandas + aiomysql</i><br/>POST /ingest/cgm"]
             CE["Clinical Extractor<br/><i>Anthropic SDK</i><br/>POST /extract"]
         end
 
         subgraph Infra["Infrastructure"]
-            DG[("DoltgreSQL<br/><i>PG wire + git versioning</i><br/>port 5432")]
+            DG[("Dolt MySQL<br/><i>MySQL wire + git versioning</i><br/>port 3306")]
             RD[("Redis<br/><i>cache</i>")]
         end
     end
@@ -32,10 +32,10 @@ graph TD
     CGM["CGM Device"] -->|CSV upload| WN
     Notes["Clinical Notes"] -->|text| CE
 
-    FI -->|Npgsql| DG
-    DA -->|Npgsql| DG
-    WN -->|psycopg| DG
-    CE -->|psycopg| DG
+    FI -->|MySqlConnector| DG
+    DA -->|MySqlConnector| DG
+    WN -->|aiomysql| DG
+    CE -->|aiomysql| DG
 
     FI --> RD
     DA --> RD
@@ -51,18 +51,18 @@ graph TD
 | Data API | C# (ASP.NET Core) | Shares the `Acme.Stack.Core` domain model with FHIR ingestion. One canonical patient type across both services. |
 | Wearable normalizer | Python (FastAPI) | Health data libraries (HealthKit parsers, pandas for CGM analysis) are Python-native. |
 | Clinical extractor | Python (FastAPI) | LLM SDKs (Anthropic, OpenAI), NLP libraries (spaCy), structured output parsing — Python's AI/ML ecosystem is stronger. |
-| Database | DoltgreSQL | PostgreSQL wire-compatible + git-style versioning. HIPAA audit trails at the storage layer, not in application code. See [ADR-1001](docs/adr/1001-doltgresql-versioned-clinical-data.md). |
+| Database | Dolt MySQL | MySQL wire-compatible + git-style versioning. HIPAA audit trails at the storage layer, not in application code. See [ADR-1001](docs/adr/1001-doltgresql-versioned-clinical-data.md). |
 | Orchestration | .NET Aspire | Service discovery, health checks, OpenTelemetry tracing across C# and Python services. One command starts everything. |
 
 Full rationale in [ADR-2001](docs/adr/2001-polyglot-aspire-orchestration.md).
 
-**A note on technology selection**: This demo uses C# where type safety is a clinical safety mechanism and Python where the ecosystem is strongest. In a production context, the technology mix depends on the existing codebase, team skills, and migration cost — not preference. DoltgreSQL's PostgreSQL wire compatibility means every service connects with standard drivers (Npgsql, psycopg). Switching to plain PostgreSQL is a connection string change.
+**A note on technology selection**: This demo uses C# where type safety is a clinical safety mechanism and Python where the ecosystem is strongest. In a production context, the technology mix depends on the existing codebase, team skills, and migration cost — not preference. Dolt MySQL's MySQL wire compatibility means every service connects with standard drivers (MySqlConnector, aiomysql). Switching to plain MySQL is a connection string change.
 
 ## Prerequisites
 
 - .NET 10 SDK
 - Python 3.13+ with [uv](https://docs.astral.sh/uv/)
-- Docker Desktop (for DoltgreSQL and Redis containers)
+- Docker Desktop (for Dolt MySQL and Redis containers)
 
 ## Quick Start
 
@@ -116,7 +116,7 @@ bash data/scripts/download-samples.sh
 | [ADR-2002](docs/adr/2002-fhir-canonical-data-model.md) | FHIR R4 as canonical data model with extensions |
 | [ADR-2003](docs/adr/2003-monorepo-project-structure.md) | Monorepo with Aspire composition |
 | [ADR-2004](docs/adr/2004-human-in-the-loop-clinical-ai.md) | Human review for AI-derived clinical data |
-| [ADR-1001](docs/adr/1001-doltgresql-versioned-clinical-data.md) | DoltgreSQL for version-controlled clinical data |
+| [ADR-1001](docs/adr/1001-doltgresql-versioned-clinical-data.md) | Dolt for version-controlled clinical data (superseded: DoltgreSQL → Dolt MySQL) |
 
 ## License
 

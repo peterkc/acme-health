@@ -7,7 +7,7 @@ sequenceDiagram
     actor Client
     participant WN as Wearable Normalizer<br/>(Python / FastAPI)
     participant PD as pandas
-    participant DB as DoltgreSQL
+    participant DB as Dolt MySQL
     participant Dolt as Dolt Versioning
 
     Client->>WN: POST /ingest/cgm<br/>(multipart CSV upload)

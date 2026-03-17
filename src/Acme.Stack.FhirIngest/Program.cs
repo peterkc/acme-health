@@ -2,19 +2,19 @@ using System.Text.Json;
 using Acme.Stack.Core;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
-using Npgsql;
+using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.Services.AddOpenApi();
 
-// Register NpgsqlDataSource for DI — connection string injected by Aspire via env var
-var connectionString = builder.Configuration.GetConnectionString("doltgresql");
+// Register MySqlDataSource for DI — connection string injected by Aspire via env var
+var connectionString = builder.Configuration.GetConnectionString("acme-health");
 if (!string.IsNullOrEmpty(connectionString))
 {
-    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-    builder.Services.AddSingleton<NpgsqlDataSource>(dataSourceBuilder.Build());
+    var dataSourceBuilder = new MySqlDataSourceBuilder(connectionString);
+    builder.Services.AddSingleton<MySqlDataSource>(dataSourceBuilder.Build());
 }
 
 var app = builder.Build();
@@ -27,7 +27,7 @@ if (app.Environment.IsDevelopment())
 app.MapDefaultEndpoints();
 
 // Create schema on startup — idempotent via IF NOT EXISTS
-var dbSource = app.Services.GetService<NpgsqlDataSource>();
+var dbSource = app.Services.GetService<MySqlDataSource>();
 if (dbSource is not null)
 {
     try
@@ -49,7 +49,7 @@ if (dbSource is not null)
 // POST /fhir/Bundle — Accept a Synthea FHIR R4 Bundle, extract and persist Patient + Observation
 app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger) =>
 {
-    var db = request.HttpContext.RequestServices.GetService<NpgsqlDataSource>();
+    var db = request.HttpContext.RequestServices.GetService<MySqlDataSource>();
     // Read raw JSON from request body
     using var reader = new StreamReader(request.Body);
     var json = await reader.ReadToEndAsync();
@@ -98,15 +98,15 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             statusCode: 503);
     }
 
-    // FR-032: DoltgreSQL unreachable returns HTTP 503
-    NpgsqlConnection conn;
+    // FR-013: Dolt MySQL unreachable returns HTTP 503
+    MySqlConnection conn;
     try
     {
         conn = await db.OpenConnectionAsync();
     }
-    catch (NpgsqlException ex)
+    catch (MySqlException ex)
     {
-        logger.LogError(ex, "DoltgreSQL unreachable");
+        logger.LogError(ex, "Dolt MySQL unreachable");
         return Results.Problem(
             detail: "Database is unavailable",
             statusCode: 503);
@@ -124,20 +124,21 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             cmd.Transaction = transaction;
             cmd.CommandText = """
                 INSERT INTO patients (id, family_name, given_name, birth_date, gender)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (id) DO UPDATE SET
-                    family_name = EXCLUDED.family_name,
-                    given_name = EXCLUDED.given_name,
-                    birth_date = EXCLUDED.birth_date,
-                    gender = EXCLUDED.gender
+                VALUES (@id, @familyName, @givenName, @birthDate, @gender)
+                AS new
+                ON DUPLICATE KEY UPDATE
+                    family_name = new.family_name,
+                    given_name = new.given_name,
+                    birth_date = new.birth_date,
+                    gender = new.gender
                 """;
-            cmd.Parameters.AddWithValue(record.Id);
-            cmd.Parameters.AddWithValue(record.FamilyName ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue(record.GivenName ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue(record.BirthDate.HasValue
+            cmd.Parameters.AddWithValue("@id", record.Id);
+            cmd.Parameters.AddWithValue("@familyName", record.FamilyName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@givenName", record.GivenName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@birthDate", record.BirthDate.HasValue
                 ? record.BirthDate.Value
                 : DBNull.Value);
-            cmd.Parameters.AddWithValue(record.Gender ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@gender", record.Gender ?? (object)DBNull.Value);
             await cmd.ExecuteNonQueryAsync();
         }
 
@@ -149,40 +150,41 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             cmd.Transaction = transaction;
             cmd.CommandText = """
                 INSERT INTO observations (id, patient_id, code, display, value, unit, effective_date)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (id) DO UPDATE SET
-                    patient_id = EXCLUDED.patient_id,
-                    code = EXCLUDED.code,
-                    display = EXCLUDED.display,
-                    value = EXCLUDED.value,
-                    unit = EXCLUDED.unit,
-                    effective_date = EXCLUDED.effective_date
+                VALUES (@id, @patientId, @code, @display, @value, @unit, @effectiveDate)
+                AS new
+                ON DUPLICATE KEY UPDATE
+                    patient_id = new.patient_id,
+                    code = new.code,
+                    display = new.display,
+                    value = new.value,
+                    unit = new.unit,
+                    effective_date = new.effective_date
                 """;
-            cmd.Parameters.AddWithValue(record.Id);
-            cmd.Parameters.AddWithValue(record.PatientId ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue(record.Code ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue(record.Display ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue(record.Value.HasValue
+            cmd.Parameters.AddWithValue("@id", record.Id);
+            cmd.Parameters.AddWithValue("@patientId", record.PatientId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@code", record.Code ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@display", record.Display ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@value", record.Value.HasValue
                 ? record.Value.Value
                 : DBNull.Value);
-            cmd.Parameters.AddWithValue(record.Unit ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue(record.EffectiveDate);
+            cmd.Parameters.AddWithValue("@unit", record.Unit ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@effectiveDate", record.EffectiveDate);
             await cmd.ExecuteNonQueryAsync();
         }
 
         await transaction.CommitAsync();
 
-        // Commit the data change in DoltgreSQL for version tracking
+        // Commit the data change in Dolt MySQL for version tracking
         string? commitHash = null;
         try
         {
             await using var commitCmd = conn.CreateCommand();
             var timestamp = DateTime.UtcNow.ToString("o");
-            commitCmd.CommandText = "SELECT DOLT_COMMIT('-Am', $1)";
-            commitCmd.Parameters.AddWithValue($"Ingest: FHIR Bundle at {timestamp}");
+            commitCmd.CommandText = "SELECT DOLT_COMMIT('-Am', @msg)";
+            commitCmd.Parameters.AddWithValue("@msg", $"Ingest: FHIR Bundle at {timestamp}");
             var result = await commitCmd.ExecuteScalarAsync();
             commitHash = result?.ToString();
-            logger.LogInformation("DoltgreSQL commit: {CommitHash}", commitHash);
+            logger.LogInformation("Dolt commit: {CommitHash}", commitHash);
         }
         catch (Exception ex)
         {

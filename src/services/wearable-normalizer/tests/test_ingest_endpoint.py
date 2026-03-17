@@ -1,6 +1,6 @@
 """Tests for the /ingest/cgm endpoint via FastAPI TestClient.
 
-Unit tests mock psycopg to validate CSV parsing, normalization, response format,
+Unit tests mock aiomysql to validate CSV parsing, normalization, response format,
 and error handling without a real database.
 DB-dependent tests are marked @pytest.mark.integration.
 """
@@ -27,33 +27,28 @@ class _MockCursor:
 
 
 class _MockConnection:
-    """Async context manager connection mock."""
+    """aiomysql connection mock (not a context manager — matches aiomysql API)."""
 
     def __init__(self):
         self._cursors: list[_MockCursor] = []
         self.commit = AsyncMock()
+        self.close = lambda: None  # aiomysql conn.close() is synchronous
 
     def cursor(self):
         cur = _MockCursor()
         self._cursors.append(cur)
         return cur
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        pass
-
 
 @pytest.fixture()
 def mock_db_client(client):
-    """Client fixture with mocked psycopg connection for endpoint tests."""
+    """Client fixture with mocked aiomysql connection for endpoint tests."""
     mock_conn = _MockConnection()
 
-    async def fake_connect(conninfo):
+    async def fake_connect(**kwargs):
         return mock_conn
 
-    with patch("main.psycopg.AsyncConnection.connect", side_effect=fake_connect):
+    with patch("main.aiomysql.connect", side_effect=fake_connect):
         yield client, mock_conn
 
 

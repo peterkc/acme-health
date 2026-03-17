@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by Dolt MySQL migration (2026-03-17)
+
+**Supersession rationale**: Smoke testing revealed three blocking DoltgreSQL compatibility gaps: (1) SQL isolation levels not supported (`BeginTransactionAsync()` crashes), (2) `EXCLUDED` keyword not supported in UPSERT, (3) underdocumented environment variables. DoltgreSQL (PostgreSQL wire, beta since 2023) was replaced with Dolt MySQL (MySQL wire, mature since 2019). The core decision — version-controlled clinical data via Dolt — remains valid. Only the wire protocol and drivers changed: Npgsql → MySqlConnector (C#), psycopg → aiomysql (Python), port 5432 → 3306. See `src/AppHost/AppHost.cs` for current Dolt MySQL configuration.
 
 ## Date
 

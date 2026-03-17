@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.MySql" Version="13.1.2" />
     <PackageReference Include="Aspire.Hosting.Python" Version="13.1.2" />
     <PackageReference Include="Aspire.Hosting.Redis" Version="13.1.2" />
   </ItemGroup>

@@ -15,17 +15,17 @@ public class FhirIngestTests : IClassFixture<WebApplicationFactory<Program>>
     public FhirIngestTests(WebApplicationFactory<Program> factory)
     {
         // Override configuration to run without a real DB for unit-level tests.
-        // Integration tests (marked with Trait) require a running DoltgreSQL instance.
+        // Integration tests (marked with Trait) require a running Dolt MySQL instance.
         _factory = factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((context, config) =>
             {
                 // Use real DB connection if provided via environment variable;
                 // otherwise fall back to empty string for unit tests.
-                var envConn = Environment.GetEnvironmentVariable("ConnectionStrings__doltgresql");
+                var envConn = Environment.GetEnvironmentVariable("ConnectionStrings__acme-health");
                 config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:doltgresql"] = envConn ?? ""
+                    ["ConnectionStrings:acme-health"] = envConn ?? ""
                 });
             });
         });

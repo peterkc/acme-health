@@ -193,7 +193,9 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
                     display = new.display,
                     value_numeric = new.value_numeric,
                     unit = new.unit,
-                    effective_date = new.effective_date
+                    effective_date = new.effective_date,
+                    source_standard = new.source_standard,
+                    source_version = new.source_version
                 """;
             cmd.Parameters.AddWithValue("@id", record.Id);
             cmd.Parameters.AddWithValue("@patientId", record.PatientId ?? (object)DBNull.Value);

@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS raw_payloads (
     source_version VARCHAR(50),
     payload LONGTEXT NOT NULL,
     payload_hash VARCHAR(64) NOT NULL,
-    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_payload_hash (payload_hash)
 );
 """
 

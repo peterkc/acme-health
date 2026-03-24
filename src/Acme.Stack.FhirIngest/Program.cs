@@ -347,8 +347,8 @@ static HealthRecord MapObservation(Observation obs)
     else if (patientRef.StartsWith("Patient/"))
         patientRef = patientRef["Patient/".Length..];
 
-    // Parse effective date — handle both dateTime and Period
-    DateTime effectiveDate = DateTime.UtcNow;
+    // Parse effective date — handle both dateTime and Period; null if absent
+    DateTime? effectiveDate = null;
     if (obs.Effective is FhirDateTime fdt && fdt.ToDateTimeOffset(TimeSpan.Zero) is DateTimeOffset dto)
         effectiveDate = dto.UtcDateTime;
     else if (obs.Effective is Period period && period.StartElement?.ToDateTimeOffset(TimeSpan.Zero) is DateTimeOffset pdto)

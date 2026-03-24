@@ -6,7 +6,7 @@
 
 ## Decision Summary
 
-Healthcare compliance for an AI startup spans six regulatory domains. HIPAA is the foundation but not the ceiling. The practical differentiation for a portfolio project is **compliance by design** — where governance constraints shape architecture from day one rather than existing as policy documents.
+Healthcare compliance for an AI startup spans six regulatory domains. HIPAA is the foundation but not the ceiling. The practical differentiation for a project project is **compliance by design** — where governance constraints shape architecture from day one rather than existing as policy documents.
 
 ## Key Findings
 
@@ -57,7 +57,7 @@ Recommended order for healthcare AI startups:
 
 **Build on FHIR R4** (mandated by Cures Act). Skip R5 — R6 expected 2027+.
 
-| Standard | Status | Portfolio Priority |
+| Standard | Status | Project Priority |
 |---|---|---|
 | FHIR R4 | Mandated (Cures Act, ONC) | Must-have |
 | USCDI v3.1 | Required by Jan 1, 2026 | Must-have |
@@ -79,7 +79,7 @@ Recommended order for healthcare AI startups:
 | California CCPA/CPRA | Active | HIPAA exemption narrower than assumed |
 | CARIN Blue Button | STU 2.1.0 (Feb 2025) | Claims data consumption standard |
 
-### 6. Emerging Standards & Portfolio Relevance
+### 6. Emerging Standards & Project Relevance
 
 **Compliance knowledge hierarchy** (what differentiates candidates):
 
@@ -102,7 +102,7 @@ Recommended order for healthcare AI startups:
 | Data Retention | HIPAA: 6 years (compliance docs); medical records: state law (7-30 years) |
 | Incident Response | Written plan, tested annually (proposed: 72-hour restoration) |
 
-## Portfolio Documentation Recommendations
+## Project Documentation Recommendations
 
 ### Compliance by Design (show in architecture, not just docs)
 
@@ -144,4 +144,4 @@ Full source lists included in individual worker reports:
 - `02-security-certifications.md` — SOC 2, HITRUST, ISO 27001, FedRAMP, NIST
 - `03-ai-ml-regulations.md` — FDA SaMD, ONC HTI-1, EU AI Act, bias laws
 - `04-data-standards.md` — FHIR, USCDI, TEFCA, CMS-0057-F, state privacy
-- `05-emerging-standards.md` — AI transparency, fairness, portfolio guidance
+- `05-emerging-standards.md` — AI transparency, fairness, project guidance

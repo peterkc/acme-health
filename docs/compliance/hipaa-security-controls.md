@@ -109,7 +109,7 @@ The choice of Dolt MySQL for the data layer ([ADR-1001](../adr/1001-doltgresql-v
 
 | Safeguard | Gap | Severity |
 |-----------|-----|----------|
-| §164.308(a)(5) — Workforce training | Not applicable (solo portfolio project) | N/A |
+| §164.308(a)(5) — Workforce training | Not applicable (solo developer, demo project) | N/A |
 | §164.312(a)(1) — Authentication | No endpoint authentication | High for production |
 | §164.312(a)(2)(iv) — Encryption at rest | Docker volume not encrypted | Medium |
 | §164.312(e)(1) — Transmission security | MySQL connections not TLS-encrypted in dev | Medium |

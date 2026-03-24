@@ -1,4 +1,4 @@
-# Emerging Standards & Portfolio Relevance
+# Emerging Standards & Project Relevance
 
 **Worker**: RQ7 | **Date**: 2026-03-21
 
@@ -108,7 +108,7 @@
 
 ## Prioritized Recommendations
 
-### Highest impact (achievable in portfolio):
+### Highest impact (achievable in this project):
 1. Use Synthea as data source
 2. Commit a Model Card with real numbers
 3. Show demographic stratification in every evaluation

@@ -16,7 +16,7 @@ A health data platform ingests from multiple source types (FHIR APIs, wearable d
 - **AI/ML extraction**: LLM SDKs (Anthropic, OpenAI), NLP libraries (spaCy), and data manipulation (pandas) are Python-native. The ecosystem gap in .NET is real.
 - **Wearable normalization**: Health data libraries (Apple HealthKit parsers, Fitbit SDKs) ship Python-first.
 
-The job description lists Python/FastAPI as the current stack but invites a "strategic reboot if warranted."
+A greenfield health platform with Python/FastAPI as the initial stack. The question: stay pure Python or adopt a polyglot approach where it pays off?
 
 ## Decision
 
@@ -52,7 +52,7 @@ Aspire bridges both: `AddUvicornApp()` manages Python services as first-class ci
 
 - C# and Python services share no in-process code. Communication is via HTTP APIs and PostgreSQL (DoltgreSQL).
 - The shared domain model (`Acme.Stack.Core`) is C#-only. Python services work with the same schema via database tables and API contracts.
-- Developers need familiarity with both ecosystems. At a 3-person startup, this is acceptable — founding engineers are generalists.
+- Developers need familiarity with both ecosystems. At a small team, this is acceptable — early engineers are generalists.
 - If the team grows and specializes, the service boundaries allow teams to own their language stack independently.
 
 ## Links

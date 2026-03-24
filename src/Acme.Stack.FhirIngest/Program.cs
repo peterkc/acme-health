@@ -26,19 +26,21 @@ if (app.Environment.IsDevelopment())
 
 app.MapDefaultEndpoints();
 
-// Create schema on startup — idempotent via IF NOT EXISTS
+// Create schema on startup — all tables in dependency order (ADR-2005)
 var dbSource = app.Services.GetService<MySqlDataSource>();
 if (dbSource is not null)
 {
     try
     {
         await using var conn = await dbSource.OpenConnectionAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = Schema.CreatePatients;
-        await cmd.ExecuteNonQueryAsync();
-        cmd.CommandText = Schema.CreateObservations;
-        await cmd.ExecuteNonQueryAsync();
-        app.Logger.LogInformation("Database schema initialized (patients, observations)");
+        foreach (var ddl in Schema.AllTables)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = ddl;
+            await cmd.ExecuteNonQueryAsync();
+        }
+        app.Logger.LogInformation(
+            "Database schema initialized ({TableCount} tables)", Schema.AllTables.Length);
     }
     catch (Exception ex)
     {
@@ -50,7 +52,7 @@ if (dbSource is not null)
 app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger) =>
 {
     var db = request.HttpContext.RequestServices.GetService<MySqlDataSource>();
-    // Read raw JSON from request body
+    // Read raw JSON from request body — preserved for raw_payloads archive
     using var reader = new StreamReader(request.Body);
     var json = await reader.ReadToEndAsync();
 
@@ -116,21 +118,52 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
     {
         await using var transaction = await conn.BeginTransactionAsync();
 
-        // Persist patients — UPSERT for idempotent ingestion
+        // --- Layer 2: Archive raw payload (ADR-2005) ---
+        var payloadHash = PayloadHash.Compute(json);
+        var rawPayloadId = Guid.NewGuid().ToString();
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = """
+                INSERT IGNORE INTO raw_payloads (id, content_type, source_standard, source_version, payload, payload_hash)
+                VALUES (@id, @contentType, @sourceStandard, @sourceVersion, @payload, @payloadHash)
+                """;
+            cmd.Parameters.AddWithValue("@id", rawPayloadId);
+            cmd.Parameters.AddWithValue("@contentType", "application/fhir+json");
+            cmd.Parameters.AddWithValue("@sourceStandard", "fhir-r4");
+            cmd.Parameters.AddWithValue("@sourceVersion", "R4/4.0.1");
+            cmd.Parameters.AddWithValue("@payload", json);
+            cmd.Parameters.AddWithValue("@payloadHash", payloadHash);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Resolve the actual raw_payload ID (may differ if INSERT IGNORE skipped a duplicate)
+        {
+            await using var lookupCmd = conn.CreateCommand();
+            lookupCmd.Transaction = transaction;
+            lookupCmd.CommandText = "SELECT id FROM raw_payloads WHERE payload_hash = @hash LIMIT 1";
+            lookupCmd.Parameters.AddWithValue("@hash", payloadHash);
+            rawPayloadId = (string?)await lookupCmd.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("raw_payload lookup failed after archive insert");
+        }
+
+        // --- Layer 1: Persist patients with source tracking ---
         foreach (var patient in patients)
         {
             var record = MapPatient(patient);
             await using var cmd = conn.CreateCommand();
             cmd.Transaction = transaction;
             cmd.CommandText = """
-                INSERT INTO patients (id, family_name, given_name, birth_date, gender)
-                VALUES (@id, @familyName, @givenName, @birthDate, @gender)
+                INSERT INTO patients (id, family_name, given_name, birth_date, gender, source_standard, source_version)
+                VALUES (@id, @familyName, @givenName, @birthDate, @gender, @sourceStandard, @sourceVersion)
                 AS new
                 ON DUPLICATE KEY UPDATE
                     family_name = new.family_name,
                     given_name = new.given_name,
                     birth_date = new.birth_date,
-                    gender = new.gender
+                    gender = new.gender,
+                    source_standard = new.source_standard,
+                    source_version = new.source_version
                 """;
             cmd.Parameters.AddWithValue("@id", record.Id);
             cmd.Parameters.AddWithValue("@familyName", record.FamilyName ?? (object)DBNull.Value);
@@ -139,37 +172,63 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
                 ? record.BirthDate.Value
                 : DBNull.Value);
             cmd.Parameters.AddWithValue("@gender", record.Gender ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@sourceStandard", record.SourceStandard);
+            cmd.Parameters.AddWithValue("@sourceVersion", record.SourceVersion);
             await cmd.ExecuteNonQueryAsync();
+
+            // --- Layer 3: Provenance for patient ---
+            await InsertProvenance(conn, transaction, "patients", record.Id, rawPayloadId, "fhir-r4-parser");
         }
 
-        // Persist observations — UPSERT for idempotent ingestion
+        // --- Layer 1: Persist observations as health_records (ADR-2005) ---
         foreach (var obs in observations)
         {
             var record = MapObservation(obs);
             await using var cmd = conn.CreateCommand();
             cmd.Transaction = transaction;
             cmd.CommandText = """
-                INSERT INTO observations (id, patient_id, code, display, value, unit, effective_date)
-                VALUES (@id, @patientId, @code, @display, @value, @unit, @effectiveDate)
+                INSERT INTO health_records
+                    (id, patient_id, record_type, code, code_system, display,
+                     value_numeric, value_text, unit, device_type, effective_date,
+                     source_standard, source_version)
+                VALUES
+                    (@id, @patientId, @recordType, @code, @codeSystem, @display,
+                     @valueNumeric, @valueText, @unit, @deviceType, @effectiveDate,
+                     @sourceStandard, @sourceVersion)
                 AS new
                 ON DUPLICATE KEY UPDATE
                     patient_id = new.patient_id,
                     code = new.code,
+                    code_system = new.code_system,
                     display = new.display,
-                    value = new.value,
+                    value_numeric = new.value_numeric,
+                    value_text = new.value_text,
                     unit = new.unit,
-                    effective_date = new.effective_date
+                    effective_date = new.effective_date,
+                    source_standard = new.source_standard,
+                    source_version = new.source_version
                 """;
             cmd.Parameters.AddWithValue("@id", record.Id);
             cmd.Parameters.AddWithValue("@patientId", record.PatientId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@recordType", record.RecordType);
             cmd.Parameters.AddWithValue("@code", record.Code ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@codeSystem", record.CodeSystem ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@display", record.Display ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@value", record.Value.HasValue
-                ? record.Value.Value
+            cmd.Parameters.AddWithValue("@valueNumeric", record.ValueNumeric.HasValue
+                ? record.ValueNumeric.Value
                 : DBNull.Value);
+            cmd.Parameters.AddWithValue("@valueText", record.ValueText ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@unit", record.Unit ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@effectiveDate", record.EffectiveDate);
+            cmd.Parameters.AddWithValue("@deviceType", "ehr");
+            cmd.Parameters.AddWithValue("@effectiveDate", record.EffectiveDate.HasValue
+                ? record.EffectiveDate.Value
+                : DBNull.Value);
+            cmd.Parameters.AddWithValue("@sourceStandard", record.SourceStandard);
+            cmd.Parameters.AddWithValue("@sourceVersion", record.SourceVersion);
             await cmd.ExecuteNonQueryAsync();
+
+            // --- Layer 3: Provenance for health record ---
+            await InsertProvenance(conn, transaction, "health_records", record.Id, rawPayloadId, "fhir-r4-parser");
         }
 
         await transaction.CommitAsync();
@@ -193,6 +252,26 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             logger.LogWarning(ex, "DOLT_COMMIT failed — data persisted but not versioned");
         }
 
+        // Backfill dolt_commit into provenance records for this ingest
+        if (commitHash is not null)
+        {
+            try
+            {
+                await using var updateCmd = conn.CreateCommand();
+                updateCmd.CommandText = """
+                    UPDATE provenance SET dolt_commit = @hash
+                    WHERE raw_payload_id = @rawId AND dolt_commit IS NULL
+                    """;
+                updateCmd.Parameters.AddWithValue("@hash", commitHash);
+                updateCmd.Parameters.AddWithValue("@rawId", rawPayloadId);
+                await updateCmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to backfill dolt_commit into provenance");
+            }
+        }
+
         return Results.Ok(new
         {
             patients = patients.Count,
@@ -204,7 +283,32 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
 
 app.Run();
 
-// Map Firely Patient to flat PatientRecord
+// --- Helper: Insert provenance record ---
+// Deterministic ID from (targetId, rawPayloadId) for idempotent re-ingestion
+static async System.Threading.Tasks.Task InsertProvenance(
+    MySqlConnection conn, MySqlTransaction transaction,
+    string targetTable, string targetId, string rawPayloadId, string transform)
+{
+    // Deterministic ID from natural key — same inputs always produce same provenance ID
+    var hash = System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes($"prov:{targetId}:{rawPayloadId}"));
+    var provenanceId = new Guid(hash.AsSpan(0, 16)).ToString();
+
+    await using var cmd = conn.CreateCommand();
+    cmd.Transaction = transaction;
+    cmd.CommandText = """
+        INSERT IGNORE INTO provenance (id, target_table, target_id, raw_payload_id, transform)
+        VALUES (@id, @targetTable, @targetId, @rawPayloadId, @transform)
+        """;
+    cmd.Parameters.AddWithValue("@id", provenanceId);
+    cmd.Parameters.AddWithValue("@targetTable", targetTable);
+    cmd.Parameters.AddWithValue("@targetId", targetId);
+    cmd.Parameters.AddWithValue("@rawPayloadId", rawPayloadId);
+    cmd.Parameters.AddWithValue("@transform", transform);
+    await cmd.ExecuteNonQueryAsync();
+}
+
+// Map Firely Patient to flat PatientRecord (with source tracking)
 static PatientRecord MapPatient(Patient patient)
 {
     if (string.IsNullOrEmpty(patient.Id))
@@ -220,8 +324,8 @@ static PatientRecord MapPatient(Patient patient)
     );
 }
 
-// Map Firely Observation to flat ObservationRecord
-static ObservationRecord MapObservation(Observation obs)
+// Map Firely Observation to unified HealthRecord (ADR-2005)
+static HealthRecord MapObservation(Observation obs)
 {
     if (string.IsNullOrEmpty(obs.Id))
         throw new InvalidOperationException("Observation resource has no Id");
@@ -243,21 +347,28 @@ static ObservationRecord MapObservation(Observation obs)
     else if (patientRef.StartsWith("Patient/"))
         patientRef = patientRef["Patient/".Length..];
 
-    // Parse effective date — handle both dateTime and Period
-    DateTime effectiveDate = DateTime.UtcNow;
+    // Parse effective date — handle both dateTime and Period; null if absent
+    DateTime? effectiveDate = null;
     if (obs.Effective is FhirDateTime fdt && fdt.ToDateTimeOffset(TimeSpan.Zero) is DateTimeOffset dto)
         effectiveDate = dto.UtcDateTime;
     else if (obs.Effective is Period period && period.StartElement?.ToDateTimeOffset(TimeSpan.Zero) is DateTimeOffset pdto)
         effectiveDate = pdto.UtcDateTime;
 
-    return new ObservationRecord(
+    return new HealthRecord(
         Id: obs.Id,
         PatientId: patientRef,
+        RecordType: "observation",
         Code: coding?.Code ?? "",
+        CodeSystem: coding?.System ?? "http://loinc.org",
         Display: coding?.Display ?? "",
-        Value: value,
+        ValueNumeric: value,
+        ValueText: null,
         Unit: unit,
-        EffectiveDate: effectiveDate
+        DeviceName: null,
+        DeviceType: "ehr",
+        EffectiveDate: effectiveDate,
+        SourceStandard: "fhir-r4",
+        SourceVersion: "R4/4.0.1"
     );
 }
 

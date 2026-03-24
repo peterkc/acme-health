@@ -1,8 +1,10 @@
 """Wearable Normalizer — CGM CSV ingestion with Dolt MySQL persistence."""
 
+import hashlib
 import io
 import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -17,16 +19,100 @@ MAX_CSV_BYTES = 10 * 1024 * 1024
 
 logger = logging.getLogger("wearable-normalizer")
 
-# SQL: cgm_readings table schema (idempotent via IF NOT EXISTS)
-CREATE_CGM_READINGS = """
-CREATE TABLE IF NOT EXISTS cgm_readings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    timestamp_utc DATETIME NOT NULL,
-    glucose_mg_dl DECIMAL(18,4) NOT NULL,
-    source_file VARCHAR(255),
+# SQL schema constants — three-layer design matching Acme.Stack.Core.Schema (ADR-2005)
+# Layer 1: Canonical tables (query-optimized)
+CREATE_PATIENTS = """
+CREATE TABLE IF NOT EXISTS patients (
+    id VARCHAR(255) PRIMARY KEY,
+    family_name VARCHAR(255),
+    given_name VARCHAR(255),
+    birth_date DATE,
+    gender VARCHAR(50),
+    source_standard VARCHAR(50) DEFAULT 'fhir-r4',
+    source_version VARCHAR(50) DEFAULT 'R4/4.0.1',
+    extensions JSON,
     ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
+
+CREATE_HEALTH_RECORDS = """
+CREATE TABLE IF NOT EXISTS health_records (
+    id VARCHAR(255) PRIMARY KEY,
+    patient_id VARCHAR(255),
+    record_type VARCHAR(100) NOT NULL,
+    code VARCHAR(255),
+    code_system VARCHAR(255),
+    display VARCHAR(500),
+    value_numeric DECIMAL(18,4),
+    value_text TEXT,
+    unit VARCHAR(100),
+    device_name VARCHAR(255),
+    device_type VARCHAR(100),
+    effective_date DATETIME,
+    source_standard VARCHAR(50) NOT NULL,
+    source_version VARCHAR(50),
+    extensions JSON,
+    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_hr_patient FOREIGN KEY (patient_id) REFERENCES patients(id)
+);
+"""
+
+CREATE_CLINICAL_ENTITIES = """
+CREATE TABLE IF NOT EXISTS clinical_entities (
+    id VARCHAR(255) PRIMARY KEY,
+    patient_id VARCHAR(255),
+    entity_type VARCHAR(100) NOT NULL,
+    code VARCHAR(255),
+    code_system VARCHAR(255),
+    display VARCHAR(500),
+    confidence DECIMAL(5,4),
+    needs_review BOOLEAN DEFAULT FALSE,
+    source_text_span TEXT,
+    model_id VARCHAR(255),
+    source_standard VARCHAR(50),
+    extensions JSON,
+    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ce_patient FOREIGN KEY (patient_id) REFERENCES patients(id)
+);
+"""
+
+# Layer 2: Raw payload archive (re-parseable)
+CREATE_RAW_PAYLOADS = """
+CREATE TABLE IF NOT EXISTS raw_payloads (
+    id VARCHAR(255) PRIMARY KEY,
+    content_type VARCHAR(100) NOT NULL,
+    source_standard VARCHAR(50) NOT NULL,
+    source_version VARCHAR(50),
+    payload LONGTEXT NOT NULL,
+    payload_hash VARCHAR(64) NOT NULL,
+    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_payload_hash (payload_hash)
+);
+"""
+
+# Layer 3: Provenance chain (lineage)
+CREATE_PROVENANCE = """
+CREATE TABLE IF NOT EXISTS provenance (
+    id VARCHAR(255) PRIMARY KEY,
+    target_table VARCHAR(100) NOT NULL,
+    target_id VARCHAR(255) NOT NULL,
+    raw_payload_id VARCHAR(255) NOT NULL,
+    transform VARCHAR(100) NOT NULL,
+    transform_version VARCHAR(50),
+    dolt_commit VARCHAR(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_prov_raw FOREIGN KEY (raw_payload_id) REFERENCES raw_payloads(id)
+);
+"""
+
+# All tables in dependency order (foreign keys satisfied by creation order)
+ALL_TABLES = [
+    CREATE_PATIENTS,
+    CREATE_HEALTH_RECORDS,
+    CREATE_CLINICAL_ENTITIES,
+    CREATE_RAW_PAYLOADS,
+    CREATE_PROVENANCE,
+]
 
 # Column name variants — ordered by preference, first match wins
 TIMESTAMP_COLUMNS = ("timestamp", "time", "datetime", "date_time", "timestamp_utc")
@@ -79,17 +165,19 @@ def get_connection_string() -> dict | None:
 
 
 async def create_schema(conn_kwargs: dict) -> None:
-    """Create cgm_readings table on startup (idempotent).
+    """Create all tables on startup in dependency order (idempotent).
 
+    Mirrors Schema.AllTables from Acme.Stack.Core (ADR-2005).
     Raises on failure so the lifespan can decide whether to proceed without DB.
     """
     conn = None
     try:
         conn = await aiomysql.connect(**conn_kwargs)
         async with conn.cursor() as cur:
-            await cur.execute(CREATE_CGM_READINGS)
+            for ddl in ALL_TABLES:
+                await cur.execute(ddl)
         await conn.commit()
-        logger.info("Database schema initialized (cgm_readings)")
+        logger.info("Database schema initialized (%d tables)", len(ALL_TABLES))
     except Exception:
         logger.exception("Failed to initialize database schema")
         raise
@@ -197,7 +285,7 @@ async def ingest_cgm(file: UploadFile) -> dict:
 
     FR-020: Parse glucose readings (timestamp, glucose_mg_dl) from CSV.
     FR-021: Normalize timestamps to UTC ISO 8601.
-    FR-022: Persist to cgm_readings table via aiomysql.
+    FR-022: Persist to health_records + raw_payloads + provenance (ADR-2005).
     FR-023: Return summary with reading count and time range.
     FR-031: Skip malformed rows, include warning count.
     """
@@ -239,26 +327,94 @@ async def ingest_cgm(file: UploadFile) -> dict:
     start_ts = df["timestamp_utc"].min().isoformat()
     end_ts = df["timestamp_utc"].max().isoformat()
 
-    # Persist to Dolt MySQL (FR-022) — batch insert for NFR-002 performance
+    # Persist to Dolt MySQL (FR-022) — three-layer write (ADR-2005)
     try:
         conn = await aiomysql.connect(**conninfo)
         try:
+            # --- Layer 2: Archive raw CSV payload ---
+            raw_payload_id = str(uuid.uuid4())
+            csv_text = content.decode("utf-8", errors="replace")
+            payload_hash = hashlib.sha256(content).hexdigest()
+
             async with conn.cursor() as cur:
-                # Build parameter tuples for executemany (batch insert)
-                params = [
-                    (
-                        row["timestamp_utc"].to_pydatetime(),
+                await cur.execute(
+                    "INSERT IGNORE INTO raw_payloads"
+                    " (id, content_type, source_standard, payload, payload_hash)"
+                    " VALUES (%s, %s, %s, %s, %s)",
+                    (raw_payload_id, "text/csv", "csv/cgm", csv_text, payload_hash),
+                )
+
+            # Resolve actual raw_payload ID (INSERT IGNORE may have skipped duplicate)
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT id FROM raw_payloads WHERE payload_hash = %s",
+                    (payload_hash,),
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    raise RuntimeError("raw_payload lookup failed")
+                raw_payload_id = row[0]
+
+            # --- Layer 1: Insert health_records (batch) ---
+            # Deterministic IDs from payload_hash + timestamp for idempotent re-uploads
+            record_ids: list[str] = []
+            async with conn.cursor() as cur:
+                params = []
+                for _, row in df.iterrows():
+                    ts = row["timestamp_utc"].isoformat()
+                    record_id = str(uuid.uuid5(
+                        uuid.NAMESPACE_URL,
+                        f"cgm:{payload_hash}:{ts}",
+                    ))
+                    record_ids.append(record_id)
+                    params.append((
+                        record_id,
+                        "cgm",
+                        "glucose-mg-dl",
+                        "custom/cgm",
+                        "Glucose (mg/dL)",
                         Decimal(str(row["glucose_mg_dl"])),
-                        row["source_file"],
-                    )
-                    for _, row in df.iterrows()
-                ]
+                        "mg/dL",
+                        "cgm",
+                        row["timestamp_utc"].to_pydatetime(),
+                        "csv/cgm",
+                    ))
                 await cur.executemany(
-                    "INSERT INTO cgm_readings"
-                    " (timestamp_utc, glucose_mg_dl, source_file)"
-                    " VALUES (%s, %s, %s)",
+                    "INSERT INTO health_records"
+                    " (id, record_type, code, code_system, display,"
+                    "  value_numeric, unit, device_type, effective_date,"
+                    "  source_standard)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    " AS new"
+                    " ON DUPLICATE KEY UPDATE"
+                    "  value_numeric = new.value_numeric,"
+                    "  effective_date = new.effective_date",
                     params,
                 )
+
+            # --- Layer 3: Provenance (link each health_record to raw_payload) ---
+            # Deterministic provenance IDs for idempotent re-uploads
+            async with conn.cursor() as cur:
+                prov_params = [
+                    (
+                        str(uuid.uuid5(
+                            uuid.NAMESPACE_URL,
+                            f"prov:{rid}:{raw_payload_id}",
+                        )),
+                        "health_records",
+                        rid,
+                        raw_payload_id,
+                        "csv-cgm-normalizer",
+                    )
+                    for rid in record_ids
+                ]
+                await cur.executemany(
+                    "INSERT IGNORE INTO provenance"
+                    " (id, target_table, target_id, raw_payload_id, transform)"
+                    " VALUES (%s, %s, %s, %s, %s)",
+                    prov_params,
+                )
+
             await conn.commit()
 
             # Dolt MySQL version tracking — best-effort
@@ -275,9 +431,23 @@ async def ingest_cgm(file: UploadFile) -> dict:
                     dolt_commit_hash = row_result[0] if row_result else None
                     logger.info("Dolt commit: %s", dolt_commit_hash)
             except Exception as exc:
-                # Log but don't fail — data is persisted, versioning is best-effort
                 logger.warning("DOLT_COMMIT failed: %s", exc)
                 versioning_warning = f"DOLT_COMMIT failed: {exc}"
+
+            # Backfill dolt_commit into provenance records for this ingest
+            if dolt_commit_hash:
+                try:
+                    async with conn.cursor() as cur:
+                        await cur.execute(
+                            "UPDATE provenance SET dolt_commit = %s"
+                            " WHERE raw_payload_id = %s AND dolt_commit IS NULL",
+                            (dolt_commit_hash, raw_payload_id),
+                        )
+                    await conn.commit()
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to backfill dolt_commit: %s", exc
+                    )
         finally:
             conn.close()
 

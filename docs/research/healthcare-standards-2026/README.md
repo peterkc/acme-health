@@ -23,7 +23,7 @@ Research for ACME Health Platform — RQ4 (Data Standards) and RQ5 (State & Indu
   - [CARIN Alliance](#carin-alliance)
   - [State Privacy Laws](#state-privacy-laws)
   - [HIEs & Payer-to-Payer Exchange](#hies--payer-to-payer-exchange)
-- [Portfolio Relevance Summary](#portfolio-relevance-summary)
+- [Project Relevance Summary](#project-relevance-summary)
 
 ---
 
@@ -47,7 +47,7 @@ Research for ACME Health Platform — RQ4 (Data Standards) and RQ5 (State & Indu
 - US Core Implementation Guide profiles constrain FHIR R4 resources to USCDI data elements
 - USCDI v3 compliance via FHIR R4 required January 1, 2026
 
-**Portfolio relevance**: Foundation. Build the ACME Health FHIR server on R4. Use US Core IG profiles as the data model baseline. Do not build on R5 — regulatory compliance requires R4.
+**Project relevance**: Foundation. Build the ACME Health FHIR server on R4. Use US Core IG profiles as the data model baseline. Do not build on R5 — regulatory compliance requires R4.
 
 ---
 
@@ -62,7 +62,7 @@ Research for ACME Health Platform — RQ4 (Data Standards) and RQ5 (State & Indu
 
 **Key requirements**: No federal mandate to produce HL7 v2. However, any platform ingesting data from hospital systems must be able to consume v2 messages. Integration engines (Mirth Connect, Rhapsody, Azure Health Data Services) handle v2-to-FHIR translation.
 
-**Portfolio relevance**: Differentiator. ACME Health does not need to originate HL7 v2 but should support inbound v2 parsing for EHR data ingestion. Use an integration engine layer; do not build a v2 parser from scratch.
+**Project relevance**: Differentiator. ACME Health does not need to originate HL7 v2 but should support inbound v2 parsing for EHR data ingestion. Use an integration engine layer; do not build a v2 parser from scratch.
 
 ---
 
@@ -85,7 +85,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 
 **Applicability**: Mandatory for ONC-certified health IT. TEFCA requires USCDI v3 for all data exchanged via QHIN networks as of January 1, 2026. Information blocking violations can reach $1M per patient.
 
-**Portfolio relevance**: Mandatory. Map all ACME Health data models to USCDI v3.1 data elements. Implement v3.1 as the compliance floor; track v5/v6 for differentiation (Care Plan, UDI support signals enterprise readiness).
+**Project relevance**: Mandatory. Map all ACME Health data models to USCDI v3.1 data elements. Implement v3.1 as the compliance floor; track v5/v6 for differentiation (Care Plan, UDI support signals enterprise readiness).
 
 ---
 
@@ -100,7 +100,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 
 **Key requirements**: Platforms receiving data from EHRs must be able to parse C-CDA. C-CDA on FHIR (a US Realm specification) allows C-CDA documents to be represented as FHIR Document Bundles, enabling gradual migration.
 
-**Portfolio relevance**: Recommended. ACME Health should be able to ingest C-CDA documents from EHRs (parse XML, map to FHIR resources). Build a C-CDA ingest pipeline. Do not originate new C-CDA; FHIR is the forward-looking output format.
+**Project relevance**: Recommended. ACME Health should be able to ingest C-CDA documents from EHRs (parse XML, map to FHIR resources). Build a C-CDA ingest pipeline. Do not originate new C-CDA; FHIR is the forward-looking output format.
 
 ---
 
@@ -119,7 +119,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 - PKCE required for all app types
 - Backend Services (for server-to-server) uses JWKS/asymmetric keys instead of client secrets
 
-**Portfolio relevance**: Mandatory. If ACME Health exposes a FHIR API or connects to EHRs, implement SMART App Launch v2.0 for patient-facing apps and SMART Backend Services for payer/provider integrations.
+**Project relevance**: Mandatory. If ACME Health exposes a FHIR API or connects to EHRs, implement SMART App Launch v2.0 for patient-facing apps and SMART Backend Services for payer/provider integrations.
 
 ---
 
@@ -139,7 +139,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 - Authorization via SMART Backend Services (no user login; machine-to-machine)
 - Must support `_since` parameter for incremental exports
 
-**Portfolio relevance**: Differentiator for enterprise. Population health and analytics features require Bulk FHIR. Implement for the Provider Access API compliance path. Demonstrates enterprise readiness to payer clients.
+**Project relevance**: Differentiator for enterprise. Population health and analytics features require Bulk FHIR. Implement for the Provider Access API compliance path. Demonstrates enterprise readiness to payer clients.
 
 ---
 
@@ -195,7 +195,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 - Applications to become a QHIN: rolling basis, ~12-month process
 - Common Agreement Version 2 published May 1, 2024
 
-**Portfolio relevance**: High. Connecting ACME Health to a QHIN (likely as a Subparticipant under an existing QHIN, not a QHIN itself) enables nationwide patient record retrieval. Target becoming a TEFCA Subparticipant via Health Gorilla or eHealth Exchange. This unlocks real clinical data for demo and production use.
+**Project relevance**: High. Connecting ACME Health to a QHIN (likely as a Subparticipant under an existing QHIN, not a QHIN itself) enables nationwide patient record retrieval. Target becoming a TEFCA Subparticipant via Health Gorilla or eHealth Exchange. This unlocks real clinical data for demo and production use.
 
 ---
 
@@ -240,7 +240,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 
 **Estimated savings**: $15 billion over 10 years (CMS projection).
 
-**Portfolio relevance**: Direct. If ACME Health builds payer-facing tools or connects to payer APIs, all four endpoints are relevant. The PA API is the most technically complex and highest-value integration opportunity. Prior authorization automation is the biggest pain point in US healthcare administration.
+**Project relevance**: Direct. If ACME Health builds payer-facing tools or connects to payer APIs, all four endpoints are relevant. The PA API is the most technically complex and highest-value integration opportunity. Prior authorization automation is the biggest pain point in US healthcare administration.
 
 ---
 
@@ -262,7 +262,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 - Consumer-directed exchange invokes HIPAA Individual Right of Access (45 CFR 164.524)
 - SMART on FHIR authorization required for patient-facing apps accessing EOBs
 
-**Portfolio relevance**: Recommended. If ACME Health aggregates payer data (claims history, prior auth status, coverage), implement CARIN BB IG as the consumption standard. Enables building patient-facing financial health views and care gap analysis from claims data.
+**Project relevance**: Recommended. If ACME Health aggregates payer data (claims history, prior auth status, coverage), implement CARIN BB IG as the consumption standard. Enables building patient-facing financial health views and care gap analysis from claims data.
 
 ---
 
@@ -287,7 +287,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 - Consumer rights: access, deletion, opt-out of sale/sharing
 - Private right of action for data breaches (significant litigation risk)
 
-**Portfolio relevance**: High. ACME Health likely falls under CCPA/CPRA for any California users, especially if collecting wellness or behavioral data outside the strict PHI definition. Assume CCPA applies unless legal confirms the exemption applies to your specific data flows.
+**Project relevance**: High. ACME Health likely falls under CCPA/CPRA for any California users, especially if collecting wellness or behavioral data outside the strict PHI definition. Assume CCPA applies unless legal confirms the exemption applies to your specific data flows.
 
 #### Washington My Health My Data Act (MHMDA)
 
@@ -305,7 +305,7 @@ Note: v3.1 removed sex/gender identity data elements (pronouns, sexual orientati
 - Consumer rights: access, deletion, withdrawal of consent
 - Per se violation of Washington Consumer Protection Act (private right of action)
 
-**Portfolio relevance**: Critical risk. MHMDA has the broadest scope of any US state health privacy law. No size threshold. Private right of action. If ACME Health is available in Washington state, compliance is mandatory. Especially relevant for any non-HIPAA health data (behavioral signals, engagement data, wellness features).
+**Project relevance**: Critical risk. MHMDA has the broadest scope of any US state health privacy law. No size threshold. Private right of action. If ACME Health is available in Washington state, compliance is mandatory. Especially relevant for any non-HIPAA health data (behavioral signals, engagement data, wellness features).
 
 #### Nevada Consumer Health Data Privacy Law
 
@@ -325,7 +325,7 @@ Multiple states have proposed or enacted similar laws. The trend is toward state
 
 **State mandates**: Variable. Some states mandate provider participation (e.g., New York). Others are voluntary but incentivized. California's Data Exchange Framework (DxF) requires health facilities to share data via TEFCA-aligned standards.
 
-**Portfolio relevance**: Differentiator. Connecting to local HIEs provides real patient data for care coordination features. Many HIEs now expose FHIR APIs alongside legacy interfaces. TEFCA Subparticipant status often provides access to HIE networks nationally.
+**Project relevance**: Differentiator. Connecting to local HIEs provides real patient data for care coordination features. Many HIEs now expose FHIR APIs alongside legacy interfaces. TEFCA Subparticipant status often provides access to HIE networks nationally.
 
 #### Payer-to-Payer Data Exchange
 
@@ -333,11 +333,11 @@ Multiple states have proposed or enacted similar laws. The trend is toward state
 
 **Technical standard**: FHIR R4 + US Core IG + Da Vinci Member Attribution List (ATRList) IG.
 
-**Portfolio relevance**: High for payer-facing products. The P2P API creates a new data source for longitudinal patient records. Health tech platforms that help payers implement P2P exchange have a clear market opportunity before the January 2027 deadline.
+**Project relevance**: High for payer-facing products. The P2P API creates a new data source for longitudinal patient records. Health tech platforms that help payers implement P2P exchange have a clear market opportunity before the January 2027 deadline.
 
 ---
 
-## Portfolio Relevance Summary
+## Project Relevance Summary
 
 ### Mandatory (must implement for any FHIR-based health platform)
 

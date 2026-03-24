@@ -284,17 +284,23 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
 app.Run();
 
 // --- Helper: Insert provenance record ---
+// Deterministic ID from (targetId, rawPayloadId) for idempotent re-ingestion
 static async System.Threading.Tasks.Task InsertProvenance(
     MySqlConnection conn, MySqlTransaction transaction,
     string targetTable, string targetId, string rawPayloadId, string transform)
 {
+    // Deterministic ID from natural key — same inputs always produce same provenance ID
+    var hash = System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes($"prov:{targetId}:{rawPayloadId}"));
+    var provenanceId = new Guid(hash.AsSpan(0, 16)).ToString();
+
     await using var cmd = conn.CreateCommand();
     cmd.Transaction = transaction;
     cmd.CommandText = """
-        INSERT INTO provenance (id, target_table, target_id, raw_payload_id, transform)
+        INSERT IGNORE INTO provenance (id, target_table, target_id, raw_payload_id, transform)
         VALUES (@id, @targetTable, @targetId, @rawPayloadId, @transform)
         """;
-    cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+    cmd.Parameters.AddWithValue("@id", provenanceId);
     cmd.Parameters.AddWithValue("@targetTable", targetTable);
     cmd.Parameters.AddWithValue("@targetId", targetId);
     cmd.Parameters.AddWithValue("@rawPayloadId", rawPayloadId);

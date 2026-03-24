@@ -421,7 +421,9 @@ async def ingest_cgm(file: UploadFile) -> dict:
                         )
                     await conn.commit()
                 except Exception as exc:
-                    logger.warning("Failed to backfill dolt_commit into provenance: %s", exc)
+                    logger.warning(
+                        "Failed to backfill dolt_commit: %s", exc
+                    )
         finally:
             conn.close()
 

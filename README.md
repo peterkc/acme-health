@@ -158,6 +158,7 @@ bash data/scripts/download-samples.sh
 | [ADR-2002](docs/adr/2002-fhir-canonical-data-model.md) | FHIR R4 as canonical data model with extensions |
 | [ADR-2003](docs/adr/2003-monorepo-project-structure.md) | Monorepo with Aspire composition |
 | [ADR-2004](docs/adr/2004-human-in-the-loop-clinical-ai.md) | Human review for AI-derived clinical data |
+| [ADR-2005](docs/adr/2005-multi-standard-schema.md) | Multi-standard schema with raw payload archive and provenance chain |
 | [ADR-1001](docs/adr/1001-doltgresql-versioned-clinical-data.md) | Dolt for version-controlled clinical data (superseded: DoltgreSQL → Dolt MySQL) |
 
 ## License

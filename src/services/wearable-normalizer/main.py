@@ -356,11 +356,16 @@ async def ingest_cgm(file: UploadFile) -> dict:
                 raw_payload_id = row[0]
 
             # --- Layer 1: Insert health_records (batch) ---
+            # Deterministic IDs from payload_hash + timestamp for idempotent re-uploads
             record_ids: list[str] = []
             async with conn.cursor() as cur:
                 params = []
                 for _, row in df.iterrows():
-                    record_id = str(uuid.uuid4())
+                    ts = row["timestamp_utc"].isoformat()
+                    record_id = str(uuid.uuid5(
+                        uuid.NAMESPACE_URL,
+                        f"cgm:{payload_hash}:{ts}",
+                    ))
                     record_ids.append(record_id)
                     params.append((
                         record_id,
@@ -379,15 +384,23 @@ async def ingest_cgm(file: UploadFile) -> dict:
                     " (id, record_type, code, code_system, display,"
                     "  value_numeric, unit, device_type, effective_date,"
                     "  source_standard)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    " AS new"
+                    " ON DUPLICATE KEY UPDATE"
+                    "  value_numeric = new.value_numeric,"
+                    "  effective_date = new.effective_date",
                     params,
                 )
 
             # --- Layer 3: Provenance (link each health_record to raw_payload) ---
+            # Deterministic provenance IDs for idempotent re-uploads
             async with conn.cursor() as cur:
                 prov_params = [
                     (
-                        str(uuid.uuid4()),
+                        str(uuid.uuid5(
+                            uuid.NAMESPACE_URL,
+                            f"prov:{rid}:{raw_payload_id}",
+                        )),
                         "health_records",
                         rid,
                         raw_payload_id,
@@ -396,7 +409,7 @@ async def ingest_cgm(file: UploadFile) -> dict:
                     for rid in record_ids
                 ]
                 await cur.executemany(
-                    "INSERT INTO provenance"
+                    "INSERT IGNORE INTO provenance"
                     " (id, target_table, target_id, raw_payload_id, transform)"
                     " VALUES (%s, %s, %s, %s, %s)",
                     prov_params,

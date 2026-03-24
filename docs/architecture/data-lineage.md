@@ -24,7 +24,7 @@ Original source content preserved verbatim — JSON for FHIR, CSV text for weara
 **Layer 3 — Provenance chain** (`provenance`)
 Links each canonical record back to the raw payload that produced it, along with the transform version and Dolt commit hash. Answers "where did this row come from and how was it produced?"
 
-```
+```text
 Source --> Parser --> raw_payloads (original preserved)
                  --> canonical tables (flattened for queries)
                  --> provenance (links raw -> canonical)
@@ -37,7 +37,7 @@ All three layers are written within a single transaction before the Dolt commit 
 
 ### FHIR R4 Bundles (EHR / Synthea)
 
-```
+```text
 Synthea JSON → Firely SDK → raw_payloads + health_records + provenance → DOLT_COMMIT
 ```
 
@@ -53,7 +53,7 @@ The transaction commits before the Dolt commit. Data persists even if versioning
 
 ### CGM CSV (Wearable Devices)
 
-```
+```text
 CSV upload → pandas normalization → raw_payloads + health_records + provenance → DOLT_COMMIT
 ```
 

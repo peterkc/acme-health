@@ -189,11 +189,11 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             cmd.CommandText = """
                 INSERT INTO health_records
                     (id, patient_id, record_type, code, code_system, display,
-                     value_numeric, unit, device_type, effective_date,
+                     value_numeric, value_text, unit, device_type, effective_date,
                      source_standard, source_version)
                 VALUES
                     (@id, @patientId, @recordType, @code, @codeSystem, @display,
-                     @valueNumeric, @unit, @deviceType, @effectiveDate,
+                     @valueNumeric, @valueText, @unit, @deviceType, @effectiveDate,
                      @sourceStandard, @sourceVersion)
                 AS new
                 ON DUPLICATE KEY UPDATE
@@ -202,6 +202,7 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
                     code_system = new.code_system,
                     display = new.display,
                     value_numeric = new.value_numeric,
+                    value_text = new.value_text,
                     unit = new.unit,
                     effective_date = new.effective_date,
                     source_standard = new.source_standard,
@@ -216,6 +217,7 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             cmd.Parameters.AddWithValue("@valueNumeric", record.ValueNumeric.HasValue
                 ? record.ValueNumeric.Value
                 : DBNull.Value);
+            cmd.Parameters.AddWithValue("@valueText", record.ValueText ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@unit", record.Unit ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@deviceType", "ehr");
             cmd.Parameters.AddWithValue("@effectiveDate", record.EffectiveDate.HasValue

@@ -137,6 +137,16 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Resolve the actual raw_payload ID (may differ if INSERT IGNORE skipped a duplicate)
+        {
+            await using var lookupCmd = conn.CreateCommand();
+            lookupCmd.Transaction = transaction;
+            lookupCmd.CommandText = "SELECT id FROM raw_payloads WHERE payload_hash = @hash LIMIT 1";
+            lookupCmd.Parameters.AddWithValue("@hash", payloadHash);
+            rawPayloadId = (string?)await lookupCmd.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("raw_payload lookup failed after archive insert");
+        }
+
         // --- Layer 1: Persist patients with source tracking ---
         foreach (var patient in patients)
         {
@@ -208,7 +218,9 @@ app.MapPost("/fhir/Bundle", async (HttpRequest request, ILogger<Program> logger)
                 : DBNull.Value);
             cmd.Parameters.AddWithValue("@unit", record.Unit ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@deviceType", "ehr");
-            cmd.Parameters.AddWithValue("@effectiveDate", record.EffectiveDate);
+            cmd.Parameters.AddWithValue("@effectiveDate", record.EffectiveDate.HasValue
+                ? record.EffectiveDate.Value
+                : DBNull.Value);
             cmd.Parameters.AddWithValue("@sourceStandard", record.SourceStandard);
             cmd.Parameters.AddWithValue("@sourceVersion", record.SourceVersion);
             await cmd.ExecuteNonQueryAsync();

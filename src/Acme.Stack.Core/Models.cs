@@ -34,7 +34,7 @@ public record HealthRecord(
     string Unit,
     string? DeviceName,      // 'Dexcom G6', 'Apple Watch Series 9', 'Epic'
     string? DeviceType,      // 'cgm', 'smartwatch', 'ehr', 'manual'
-    DateTime EffectiveDate,
+    DateTime? EffectiveDate,
     string SourceStandard,   // 'fhir-r4', 'fhir-r5', 'hl7v2', 'apple-health'
     string SourceVersion     // 'R4/4.0.1', 'v2.5.1', 'export-14.0'
 );

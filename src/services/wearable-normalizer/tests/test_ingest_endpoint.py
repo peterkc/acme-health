@@ -93,9 +93,10 @@ class TestIngestCgmEndpoint:
             "/ingest/cgm",
             files={"file": ("sample.csv", io.BytesIO(sample_csv), "text/csv")},
         )
-        # Cursor 0: raw_payloads single INSERT (execute, not executemany)
-        # Cursor 1: health_records batch INSERT (executemany)
-        insert_cursor = mock_conn._cursors[1]
+        # Find the cursor that ran executemany (health_records batch INSERT)
+        insert_cursor = next(
+            c for c in mock_conn._cursors if c.executemany.called
+        )
         insert_cursor.executemany.assert_called_once()
         args = insert_cursor.executemany.call_args
         assert len(args[0][1]) == 5  # 5 parameter tuples

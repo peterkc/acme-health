@@ -344,6 +344,17 @@ async def ingest_cgm(file: UploadFile) -> dict:
                     (raw_payload_id, "text/csv", "csv/cgm", csv_text, payload_hash),
                 )
 
+            # Resolve actual raw_payload ID (INSERT IGNORE may have skipped duplicate)
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT id FROM raw_payloads WHERE payload_hash = %s",
+                    (payload_hash,),
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    raise RuntimeError("raw_payload lookup failed")
+                raw_payload_id = row[0]
+
             # --- Layer 1: Insert health_records (batch) ---
             record_ids: list[str] = []
             async with conn.cursor() as cur:

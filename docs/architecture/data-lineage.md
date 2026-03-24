@@ -61,7 +61,7 @@ CSV upload → pandas normalization → raw_payloads + health_records + provenan
 2. Column name variants are resolved case-insensitively ([`main.py:32-33`](../../src/services/wearable-normalizer/main.py#L32))
 3. Timestamps are normalized to UTC ISO 8601; malformed rows are dropped with a warning count ([`main.py:167-191`](../../src/services/wearable-normalizer/main.py#L167))
 4. Normalized readings are written to the `health_records` table via batch insert ([`main.py:256-261`](../../src/services/wearable-normalizer/main.py#L256))
-5. Original CSV content is archived to `raw_payloads` with `source_standard = 'cgm-csv'`
+5. Original CSV content is archived to `raw_payloads` with `source_standard = 'csv/cgm'`
 6. A `provenance` record is created linking each `health_records` row to its `raw_payloads` entry
 7. `CALL DOLT_COMMIT('-Am', %s)` records the change ([`main.py:271`](../../src/services/wearable-normalizer/main.py#L271))
 
